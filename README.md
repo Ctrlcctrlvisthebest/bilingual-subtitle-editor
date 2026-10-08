@@ -6,7 +6,9 @@
 
 多人协作支持自动同步、逐条版本冲突处理、成员权限、字幕认领和修改记录。部署及成员使用方法见 [字幕组协作说明](COLLABORATION.md)。
 
-网页入口：[GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)。多人协作也在这个网页中使用；展开字幕组面板后即可创建字幕组、恢复成员或通过邀请加入，网页自动连接协作服务。
+网页入口：[GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)。多人协作也在这个网页中使用；展开字幕组面板，填写昵称和组名即可直接创建字幕组，无需管理员建组密码。网页自动连接协作服务，不需要填写后端地址。
+
+创建成功后会获得以 `sg1_` 开头的专属组长密钥，可直接复制保存；换设备时粘贴密钥连接，会恢复同一个组长身份。密钥只交给实际管理这个组的人，不要公开或发给普通组员；组员通过邀请加入。原有成员备份 JSON 仍可恢复。
 
 ## 部署到 GitHub Pages
 
