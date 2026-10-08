@@ -33,10 +33,15 @@ export default {
     if(request.method==='OPTIONS')return response({ok:true},200,origin);
     try {
       if(url.pathname==='/api/health'&&request.method==='GET')return response({ok:true,collaboration:true},200,origin);
-      if(!env.GROUP_SIGNING_KEY||!env.CREATE_GROUP_KEY)throw new Problem(503,'协作后端尚未设置组主密钥');
+      if(!env.GROUP_SIGNING_KEY)throw new Problem(503,'字幕组服务尚未配置完成');
       if(url.pathname==='/api/groups'&&request.method==='POST') {
-        const data=await body(request),key=text(data.createKey,'建组密钥',300);
-        if(!equal(await hash(key),await hash(env.CREATE_GROUP_KEY)))throw new Problem(403,'建组密钥不正确');
+        // Group creation is self-service. Credentials returned below only grant access to this group.
+        // Cloudflare supplies CF-Connecting-IP; do not trust a client-chosen nickname or forwarding header.
+        if(!env.CREATE_LIMIT||typeof env.CREATE_LIMIT.limit!=='function')throw new Problem(503,'暂时无法创建字幕组，请稍后重试');
+        const data=await body(request);
+        text(data.name,'字幕组名称',100);text(data.memberName,'成员名称',80);
+        const {success}=await env.CREATE_LIMIT.limit({key:'subtitle-create:'+await hash(request.headers.get('CF-Connecting-IP')||'unknown')});
+        if(!success)throw new Problem(429,'创建字幕组太频繁，每分钟最多创建 3 个，请稍后重试');
         const id=crypto.randomUUID(),groupId=id+'.'+await signature(id,env.GROUP_SIGNING_KEY),raw=token();
         const result=await env.SUBTITLE_GROUPS.getByName(groupId).dispatch('init',await hash(raw),JSON.stringify(data));
         return response({...object(JSON.parse(result.json)),groupId,token:raw},result.status,origin);
