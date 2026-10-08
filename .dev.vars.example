@@ -1,3 +1,2 @@
 # Copy to .dev.vars for local development only. Use different, random secrets in production.
-CREATE_GROUP_KEY=local-development-create-key
 GROUP_SIGNING_KEY=local-development-signing-key
