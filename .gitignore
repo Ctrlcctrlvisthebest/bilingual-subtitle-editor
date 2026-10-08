@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+node_modules/
+media/
+projects/
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.srt
+*.ass
+*.zip
