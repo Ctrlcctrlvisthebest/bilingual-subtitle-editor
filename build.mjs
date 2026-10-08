@@ -1,10 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
 const root = new URL('./', import.meta.url);
-const [template, script] = await Promise.all([
+const [template, editor, exporter] = await Promise.all([
   readFile(new URL('editor.template.html', root), 'utf8'),
   readFile(new URL('editor.js', root), 'utf8'),
+  readFile(new URL('video-export.js', root), 'utf8'),
 ]);
+const script = editor + '\n' + exporter;
 const project = {
   version: 1,
   revision: 1,

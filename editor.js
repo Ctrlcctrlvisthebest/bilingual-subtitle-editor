@@ -250,7 +250,7 @@ $('applyOffset').onclick=()=>{
  remember({kind:'restore',rows:clone(rs),label:'批量偏移 '+delta+' 秒'});editGroup=null;const replacements=new Map(changed.map(r=>[r.id,r]));project.rows=project.rows.map(r=>replacements.get(r.id)||r);stopLoop();trackAll();draw();notice('已将 '+rs.length+' 条字幕'+(delta<0?'提前 ':'延后 ')+Math.abs(delta)+' 秒，可撤销。');
 };
 document.addEventListener('keydown',e=>{
- if(e.defaultPrevented||e.isComposing||e.altKey||e.ctrlKey||e.metaKey)return;
+ if($('videoExportDialog').open||e.defaultPrevented||e.isComposing||e.altKey||e.ctrlKey||e.metaKey)return;
  const target=e.target;if(target?.isContentEditable||target?.closest?.('input,textarea,select,[contenteditable],[role="textbox"],[role="slider"],[role="spinbutton"]'))return;
  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();skipBy((e.key==='ArrowLeft'?-1:1)*(e.shiftKey?fineStep():5))}
  else if(e.shiftKey)return;
