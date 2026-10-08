@@ -126,18 +126,22 @@ function cloudRenderConflicts(){
 }
 async function cloudRefresh(){
  const result=await cloudRequest(cloudPath());cloud.session.member=result.member;cloud.session.groupName=result.groupName;cloud.members=result.members;cloudStoreSession(cloud.session);
- $('cloudGroupName').textContent=result.groupName+' · '+result.member.name+'（'+({owner:'组主',editor:'编辑者',viewer:'只读成员'}[result.member.role])+'）';
+ $('cloudGroupName').textContent=result.groupName+' · '+result.member.name+'（'+({owner:'组长',editor:'编辑者',viewer:'只读成员'}[result.member.role])+'）';
+ const leader=result.member.role==='owner';$('cloudLeaderTools').hidden=!leader;
+ const leaderKey=leader?collabLeaderKey(cloud.session.groupId,cloud.session.token):'';
+ if($('cloudOwnerKey').value!==leaderKey){$('cloudOwnerKey').value=leaderKey;$('cloudOwnerKey').type='password';$('cloudShowLeaderKey').textContent='显示组长密钥';}
  const picker=$('cloudProjects'),previous=cloud.pid||picker.value;picker.replaceChildren(...result.projects.map(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.title+' · '+p.count+' 条 · '+p.updatedBy+' 最近修改';return o;}));picker.value=result.projects.some(p=>p.id===previous)?previous:result.projects[0]?.id||'';
  $('cloudOpen').disabled=!result.projects.length;$('cloudPublish').disabled=result.member.role==='viewer';$('cloudOwnerTools').hidden=result.member.role!=='owner';$('cloudConnected').hidden=false;
  const members=$('cloudMembers');members.replaceChildren();
- for(const m of result.members){const line=cloudNode('div',undefined,'row');line.append(cloudNode('span',m.name+' · '+({owner:'组主',editor:'编辑者',viewer:'只读'}[m.role])+(Date.now()-m.last_seen<90000?' · 在线':'')+(m.row_id?' · 当前字幕 '+m.row_id:'')));
+ for(const m of result.members){const line=cloudNode('div',undefined,'row');line.append(cloudNode('span',m.name+' · '+({owner:'组长',editor:'编辑者',viewer:'只读'}[m.role])+(Date.now()-m.last_seen<90000?' · 在线':'')+(m.row_id?' · 当前字幕 '+m.row_id:'')));
   if(result.member.role==='owner'&&m.role!=='owner'){const selector=document.createElement('select');selector.setAttribute('aria-label',m.name+'的权限');for(const [value,label] of [['editor','编辑者'],['viewer','只读'],['removed','移出字幕组']]){const o=cloudNode('option',label);o.value=value;selector.append(o);}selector.value=m.role;const btn=cloudNode('button','更新权限');btn.onclick=()=>cloudAction(async()=>{await cloudRequest(cloudPath('members'),'PATCH',{id:m.id,role:selector.value});await cloudRefresh();cloudMessage('成员权限已更新');});line.append(selector,btn);}members.append(line);
  }cloudEditControls();
 }
 async function cloudAction(fn){try{await fn();}catch(e){cloudMessage(e.message);}}
 async function cloudConnect(session){
+ if(cloudServer(session.server)!==CLOUD_DEFAULT_SERVER)throw Error('这份连接信息不属于当前字幕网站，请使用对应的网站入口');
  if(cloudActive()&&collabDirty(cloud.base,project)){await cloudSaveDraft();cloudMessage('当前未同步修改已保存为离线草稿，返回该共享工程时会恢复。');}
- clearTimeout(cloud.timer);cloud.epoch++;cloud.pid=null;cloud.base=null;cloud.conflicts=[];cloudStoreSession(session);cloud.server=session.server;cloudRenderConflicts();draw();await cloudRefresh();cloudMessage('已连接字幕组，选择共享工程或发布当前工程');
+ clearTimeout(cloud.timer);cloud.epoch++;cloud.pid=null;cloud.base=null;cloud.conflicts=[];$('cloudConnected').hidden=true;$('cloudLeaderTools').hidden=true;$('cloudOwnerKey').value='';cloudStoreSession(session);cloud.server=session.server;cloudRenderConflicts();draw();await cloudRefresh();cloudMessage('已连接字幕组，选择共享工程或发布当前工程');
 }
 async function cloudOpen(pid){
  if(!pid)throw Error('请选择共享工程');
@@ -158,9 +162,25 @@ async function cloudOpen(pid){
  cloudMessage(merged.conflicts.length?'离线修改与组内版本有冲突，请选择要保留的内容':'共享工程已打开；修改会自动同步');if(!merged.conflicts.length)cloudSchedule();
 }
 $('cloudCreate').onclick=()=>cloudAction(async()=>{
- const server=cloudServer(cloud.server),data=await cloudRequest('groups','POST',{name:$('cloudNewName').value.trim(),memberName:$('cloudNickname').value.trim(),createKey:$('cloudCreateKey').value},false,{server});
- $('cloudCreateKey').value='';await cloudConnect({server,groupId:data.groupId,token:data.token,member:data.member,groupName:data.groupName});cloudMessage('字幕组已创建，请下载成员备份，然后发布工程、生成邀请。');
+ const name=$('cloudNewName').value.trim(),memberName=$('cloudNickname').value.trim();if(!name||!memberName)throw Error('请先填写你的昵称和字幕组名称');
+ const button=$('cloudCreate');button.disabled=true;
+ try{const server=CLOUD_DEFAULT_SERVER,data=await cloudRequest('groups','POST',{name,memberName},false,{server});
+  await cloudConnect({server,groupId:data.groupId,token:data.token,member:data.member,groupName:data.groupName});cloudMessage('字幕组已创建，请复制组长密钥保存，再发布工程、邀请成员。');
+ }finally{button.disabled=false;}
 });
+$('cloudLeaderConnect').onclick=()=>cloudAction(async()=>{
+ const credentials=collabParseLeaderKey($('cloudLeaderLogin').value),server=CLOUD_DEFAULT_SERVER,session={server,...credentials};
+ const data=await cloudRequest('groups/'+encodeURIComponent(credentials.groupId),'GET',undefined,true,session);
+ if(data.member.role!=='owner')throw Error('这不是组长密钥；请通过成员邀请加入或恢复成员备份');
+ await cloudConnect({...session,member:data.member,groupName:data.groupName});$('cloudLeaderLogin').value='';cloudMessage('已用组长密钥连接，选择共享工程即可继续校对。');
+});
+$('cloudCopyLeaderKey').onclick=()=>cloudAction(async()=>{
+ if(cloud.session?.member.role!=='owner')throw Error('只有组长可以复制组长密钥');
+ const input=$('cloudOwnerKey');input.value=collabLeaderKey(cloud.session.groupId,cloud.session.token);
+ try{await navigator.clipboard.writeText(input.value);cloudMessage('组长密钥已复制。请私下保存或交给本组组长。');}
+ catch{input.type='text';$('cloudShowLeaderKey').textContent='隐藏组长密钥';input.focus();input.select();cloudMessage('无法自动复制，密钥已选中，请手动复制后保存。');}
+});
+$('cloudShowLeaderKey').onclick=()=>{const input=$('cloudOwnerKey');input.type=input.type==='password'?'text':'password';$('cloudShowLeaderKey').textContent=input.type==='password'?'显示组长密钥':'隐藏组长密钥';};
 $('cloudJoin').onclick=()=>cloudAction(async()=>{
  const server=cloudServer(cloud.server),groupId=$('cloudJoinGroup').value.trim(),data=await cloudRequest('groups/'+encodeURIComponent(groupId)+'/join','POST',{name:$('cloudNickname').value.trim(),code:$('cloudJoinCode').value.trim()},false,{server});
  $('cloudJoinCode').value='';await cloudConnect({server,groupId,token:data.token,member:data.member});cloudMessage('已加入字幕组，请下载成员备份，再选择共享工程。');
@@ -183,7 +203,7 @@ $('cloudInvite').onclick=()=>cloudAction(async()=>{
 $('cloudResetInvites').onclick=()=>cloudAction(async()=>{await cloudRequest(cloudPath('invites/reset'),'POST',{});$('cloudInviteResult').hidden=true;$('cloudInviteLink').value='';cloudMessage('旧邀请已全部失效，已加入的成员保持原权限。');});
 $('cloudBackup').onclick=()=>{if(cloud.session)download('字幕组-'+cloud.session.member.name+'.credential.json',JSON.stringify({format:'subtitle-group-member-v1',...cloud.session},null,2));};
 $('cloudRestore').onchange=e=>cloudAction(async()=>{const file=e.target.files[0];if(!file)return;try{const s=JSON.parse(await file.text());if(s.format!=='subtitle-group-member-v1'||!/^[-\w.]{50,120}$/.test(s.groupId)||!/^[a-f0-9]{64}$/.test(s.token)||!s.member?.name)throw Error('不是有效的成员备份');s.server=cloudServer(s.server);await cloudConnect(s);}finally{e.target.value='';}});
-$('cloudDisconnect').onclick=()=>cloudAction(async()=>{if(cloudActive()){await cloudSaveDraft();cloud.detached={id:cloudKey(),base:clone(cloud.base),conflicts:clone(cloud.conflicts)};}clearTimeout(cloud.timer);cloud.epoch++;cloud.session=null;cloud.pid=null;cloud.base=null;cloud.conflicts=[];$('cloudConnected').hidden=true;cloudRenderConflicts();draw();cloudMessage('已断开共享连接。当前修改保留为离线草稿，重新打开该共享工程时可以合入。');});
+$('cloudDisconnect').onclick=()=>cloudAction(async()=>{if(cloudActive()){await cloudSaveDraft();cloud.detached={id:cloudKey(),base:clone(cloud.base),conflicts:clone(cloud.conflicts)};}clearTimeout(cloud.timer);cloud.epoch++;cloud.session=null;cloud.pid=null;cloud.base=null;cloud.conflicts=[];$('cloudConnected').hidden=true;$('cloudOwnerKey').value='';cloudRenderConflicts();draw();cloudMessage('已断开共享连接。当前修改保留为离线草稿，重新打开该共享工程时可以合入。');});
 $('claimCue').onclick=()=>{const r=project.rows[idx];if(!r||!cloudActive())return;replaceRows(idx,1,[{...r,assignedTo:cloud.session.member.id}],'认领字幕');draw();};
 $('nextMine').onclick=()=>{if(!cloud.session)return;for(let n=1;n<=project.rows.length;n++){const i=(idx+n)%project.rows.length;if(project.rows[i].assignedTo===cloud.session.member.id&&project.rows[i].status!=='已校对'){go(i);return;}}notice('你认领的字幕都已校对，或尚未认领字幕。');};
 $('cloudHistory').onclick=()=>cloudAction(async()=>{
@@ -195,7 +215,9 @@ $('cloudHistory').onclick=()=>cloudAction(async()=>{
 function cloudInit(){
  cloudRenderConnections();cloudEditControls();cloud.poll=setInterval(()=>{void cloudPoll();},5000);
  try{const params=new URLSearchParams(location.hash.slice(1));if(params.has('subtitleGroup')){
-  cloud.server=cloudServer(params.get('backend')||CLOUD_DEFAULT_SERVER);$('cloudJoinGroup').value=params.get('subtitleGroup');$('cloudJoinCode').value=params.get('invite')||'';$('cloudPanel').open=true;$('cloudJoinDetails').open=true;
+  window.history.replaceState(null,'',location.pathname+location.search);
+  if(cloudServer(params.get('backend')||CLOUD_DEFAULT_SERVER)!==CLOUD_DEFAULT_SERVER)throw Error('这个邀请不属于当前字幕网站，请向组长索取本网站的邀请');
+  cloud.server=CLOUD_DEFAULT_SERVER;$('cloudJoinGroup').value=params.get('subtitleGroup');$('cloudJoinCode').value=params.get('invite')||'';$('cloudPanel').open=true;$('cloudJoinDetails').open=true;
   window.history.replaceState(null,'',location.pathname+location.search);cloudMessage('邀请已填写，输入昵称后点“加入字幕组”。');
  }}catch(e){cloudMessage('邀请链接无法解析：'+e.message);}
 }
