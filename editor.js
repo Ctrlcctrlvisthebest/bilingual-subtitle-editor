@@ -3,11 +3,17 @@ const $=id=>document.getElementById(id);
 const clone=value=>JSON.parse(JSON.stringify(value));
 const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():'p-'+Date.now()+'-'+Math.random().toString(36).slice(2);
 const DEFAULT_COLORS={Unknown:'#455a64',Other:'#455a64'};
+const DEFAULT_APPEARANCE={mode:'outline',order:'zh-first',zhSize:48,enSize:42,outlineWidth:3,font:'Arial',bold:true};
+function normalizeAppearance(value){
+ const a=value&&typeof value==='object'?value:{};
+ const number=(field,min,max)=>typeof a[field]==='number'&&Number.isFinite(a[field])?Math.max(min,Math.min(max,a[field])):DEFAULT_APPEARANCE[field];
+ return{mode:a.mode==='box'?'box':'outline',order:a.order==='en-first'?'en-first':'zh-first',zhSize:number('zhSize',20,90),enSize:number('enSize',20,90),outlineWidth:number('outlineWidth',1,8),font:['Arial','Microsoft YaHei','Noto Sans CJK SC'].includes(a.font)?a.font:'Arial',bold:typeof a.bold==='boolean'?a.bold:true};
+}
 const bundled=JSON.parse($('initial').textContent);
 function normalizeProject(p){
  if(!p||p.version!==1||!Array.isArray(p.rows)||p.title!==undefined&&typeof p.title!=='string'||p.editor_id!==undefined&&typeof p.editor_id!=='string')throw Error('工程格式无效');
  const isOriginal=p.video==='KyLqZkfv3BU'||p.video==='https://www.youtube.com/watch?v=KyLqZkfv3BU';
- const result={...p,colors:Object.assign(Object.create(null),DEFAULT_COLORS,p.colors),revision:p.revision||1,editor_id:p.editor_id||(isOriginal?'usmp-KyLqZkfv3BU':uid()),title:p.title||'未命名字幕工程'};
+ const result={...p,appearance:normalizeAppearance(p.appearance),colors:Object.assign(Object.create(null),DEFAULT_COLORS,p.colors),revision:p.revision||1,editor_id:p.editor_id||(isOriginal?'usmp-KyLqZkfv3BU':uid()),title:p.title||'未命名字幕工程'};
  const ids=new Set();
  result.rows=p.rows.map(r=>{
   if(!Number.isFinite(r.start)||!Number.isFinite(r.end)||r.start<0||r.end<=r.start)throw Error('字幕包含无效起止时间');
@@ -46,6 +52,7 @@ function restoreLocal(){try{
   if(saved.order){const available=new Map(project.rows.map(r=>[r.id,r]));for(const [id,r] of Object.entries(saved.patches||{}))if(!available.has(id)&&r.en!==undefined)available.set(id,{id,...r});project.rows=saved.order.map(id=>available.get(id)).filter(Boolean)}
   if(saved.colors)project.colors=Object.assign(Object.create(null),saved.colors);
   if(saved.meta)Object.assign(project,saved.meta);
+  project.appearance=normalizeAppearance(project.appearance);
   idx=Math.max(0,Math.min(project.rows.length-1,saved.index||0));
  }
 }catch(err){$('msg').textContent='暂存恢复失败，请载入已保存的工程 JSON：'+err.message}
@@ -76,7 +83,7 @@ function trackRow(r){
 function persist(r,quiet=false){
  if(r)trackRow(r);
  try{
-  localStorage.setItem(key,JSON.stringify({revision:project.revision,patches,order:project.rows.map(r=>r.id),colors:project.colors,index:idx,meta:{title:project.title,mediaName:project.mediaName,fineStep:project.fineStep}}));
+  localStorage.setItem(key,JSON.stringify({revision:project.revision,patches,order:project.rows.map(r=>r.id),colors:project.colors,index:idx,meta:{title:project.title,mediaName:project.mediaName,fineStep:project.fineStep,appearance:project.appearance}}));
   if(!quiet)notice('修改已暂存；关闭前可保存工程 JSON 作为备份。');
  }catch{notice('本浏览器暂存未成功，请保存工程 JSON 保留修改。')}
 }
@@ -91,11 +98,20 @@ function drawSpeakers(){
 }
 function contrast(hex){const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));return rgb[0]*.299+rgb[1]*.587+rgb[2]*.114>155?'#101010':'#ffffff'}
 function widthUnits(s){return [...s].reduce((n,c)=>n+(/[\u2e80-\uffef]/.test(c)?1:.52),0)}
+function drawAppearance(){
+ const a=project.appearance;
+ for(const [id,field] of Object.entries({subtitleMode:'mode',subtitleOrder:'order',zhSize:'zhSize',enSize:'enSize',outlineWidth:'outlineWidth',subtitleFont:'font'}))$(id).value=String(a[field]);
+ $('subtitleBold').checked=a.bold;
+ $('outlineWidth').disabled=a.mode==='box';
+}
 function preview(r){
  $('sub').style.visibility='visible';$('zh').textContent=r.zh||'';$('en').textContent=r.en||'';
- const color=project.colors[r.speaker]||'#455a64';$('sub').style.background=color;$('sub').style.borderColor=color;$('sub').style.color=contrast(color);
+ const a=project.appearance,color=project.colors[r.speaker]||'#455a64',outlined=a.mode==='outline';
+ $('sub').style.background=outlined?'transparent':color;$('sub').style.border='none';$('sub').style.color=outlined?'#ffffff':contrast(color);
+ $('sub').style.fontFamily='"'+a.font+'", "PingFang SC", "Microsoft YaHei", sans-serif';$('sub').style.fontWeight=a.bold?'700':'400';
  const available=Math.max(160,($('screen').clientWidth||1000)-100);
- $('zh').style.fontSize=Math.min(24,available/Math.max(1,widthUnits(r.zh)))+'px';$('en').style.fontSize=Math.min(18,available/Math.max(1,widthUnits(r.en)))+'px';
+ const scale=Math.min(1,available/1720),stroke=a.outlineWidth*scale;
+ for(const [language,size] of [['zh',a.zhSize],['en',a.enSize]]){const el=$(language);el.style.fontSize=Math.min(size*scale,available/Math.max(1,widthUnits(r[language])))+'px';el.style.display=r[language].trim()?'block':'none';el.style.order=language===(a.order==='zh-first'?'zh':'en')?'0':'1';el.style.webkitTextStroke=outlined?(2*stroke)+'px '+color:'0px';el.style.textShadow=outlined?'0 '+scale+'px '+scale+'px #000000':'none'}
 }
 const rowControls=['prev','next','seek','setStart','setEnd','startMinus','startPlus','endMinus','endPlus','listenStart','listenEnd','split','merge','delete','start','end','speaker','status','zhEdit','enEdit','note'];
 function draw(){
@@ -107,7 +123,7 @@ function draw(){
  $('asrText').textContent='音频转写参考：'+(r?.audioTranscript||'暂无');$('ytText').textContent='原字幕参考：'+(r?.youtubeTranscript||r?.sourceText||r?.en||'暂无');
  $('verification').textContent=r?'说话者：'+(r.verification?.speaker==='confirmed'?'已确认':r.speaker==='Unknown'?'未确认':'暂定 '+r.speaker):'尚无字幕；可导入 SRT / ASS，或在当前位置新增。';
  if(r){preview(r);$('speakerName').value=r.speaker;$('speakerColor').value=project.colors[r.speaker]||'#455a64'}else $('sub').style.visibility='hidden';
- timingHint();offsetPreview();
+ drawAppearance();timingHint();offsetPreview();
 }
 function go(i){if(!project.rows.length)return;idx=Math.max(0,Math.min(project.rows.length-1,Math.floor(i)||0));stopLoop();editGroup=null;draw();persist(null,true)}
 function remember(entry){history.push({...entry,idx});if(history.length>30)history.shift();$('undo').disabled=false}
@@ -134,6 +150,7 @@ $('undo').onclick=()=>{
  const h=history.pop();if(!h)return;
  if(h.kind==='splice')project.rows.splice(h.at,h.inserted,...h.rows);else{const before=new Map(h.rows.map(r=>[r.id,r]));project.rows=project.rows.map(r=>before.get(r.id)||r)}
  if(h.colors){project.colors=Object.assign(Object.create(null),h.colors);drawSpeakers()}
+ if(h.appearance)project.appearance=normalizeAppearance(h.appearance);
  idx=Math.max(0,Math.min(project.rows.length-1,h.idx));stopLoop();editGroup=null;trackAll();draw();notice('已撤销：'+h.label);
 };
 function blankRow(start=0,end=start+2){return{id:uid(),start,end,zh:'',en:'',speaker:'Unknown',status:'疑点待听校',note:'',verification:{translation:'pending',audio:'pending',speaker:'pending'}}}
@@ -262,8 +279,9 @@ function parseSRT(text,mode='auto'){
 function assColor(value){const hex=String(value||'').replace(/^&H/i,'').replace(/&$/,'').padStart(8,'0').slice(-6);return/^[0-9a-f]{6}$/i.test(hex)?'#'+hex.slice(4,6)+hex.slice(2,4)+hex.slice(0,2):'#455a64'}
 function csvFields(text,fields){const parts=text.split(',');return parts.length<fields.length?null:parts.slice(0,fields.length-1).concat(parts.slice(fields.length-1).join(','))}
 function parseASS(text,mode='auto'){
- let section='',styleFields=[],eventFields=['Layer','Start','End','Style','Name','MarginL','MarginR','MarginV','Effect','Text'];const styles=Object.create(null),colors=Object.assign(Object.create(null),DEFAULT_COLORS),parsed=[];
+ let section='',styleFields=[],eventFields=['Layer','Start','End','Style','Name','MarginL','MarginR','MarginV','Effect','Text'],appearance=normalizeAppearance();const styles=Object.create(null),colors=Object.assign(Object.create(null),DEFAULT_COLORS),parsed=[];
  for(const line of text.replace(/^\uFEFF/,'').split(/\r?\n/)){
+  if(line.startsWith('; BilingualEditorAppearance: ')){appearance=normalizeAppearance(JSON.parse(line.slice('; BilingualEditorAppearance: '.length)));continue}
   if(/^\[/.test(line.trim())){section=line.trim();continue}
   if(/^Format:/i.test(line)){const fields=line.slice(line.indexOf(':')+1).split(',').map(s=>s.trim());if(section==='[Events]')eventFields=fields;else if(/Styles/.test(section))styleFields=fields;continue}
   if(/^Style:/i.test(line)&&styleFields.length){const parts=csvFields(line.slice(line.indexOf(':')+1).trim(),styleFields);if(parts){const style=Object.fromEntries(styleFields.map((f,i)=>[f,parts[i].trim()]));styles[style.Name]=style}continue}
@@ -274,7 +292,7 @@ function parseASS(text,mode='auto'){
   const speaker=(event.Name||event.Style||'Unknown').trim(),style=styles[event.Style];colors[speaker]=style?assColor(style.OutlineColour||style.BackColour):'#455a64';
   parsed.push({...blankRow(parseStamp(event.Start),parseStamp(event.End)),...splitLanguages(sourceText,mode),speaker,sourceText});
  }
- if(!parsed.length)throw Error('未发现 ASS 文本字幕');return normalizeProject({version:1,rows:parsed,colors});
+ if(!parsed.length)throw Error('未发现 ASS 文本字幕');return normalizeProject({version:1,rows:parsed,colors,appearance});
 }
 function clearMedia(){player.pause();stopLoop();player.removeAttribute('src');player.load();$('mediaName').textContent='请选择本工程对应的音视频';$('seekFeedback').textContent='';updatePlayback()}
 const mediaSources=new Map();if(player.getAttribute('src'))mediaSources.set(project.editor_id,{src:player.getAttribute('src'),time:0});
@@ -288,21 +306,28 @@ async function activateProject(p,{restore=true,store=false}={}){
  drawSpeakers();registerProject();draw();persist(null,true);
 }
 $('projectPicker').onchange=async()=>{const id=$('projectPicker').value;const base=await readBase(id);if(!base){$('projectPicker').value=project.editor_id;notice('本浏览器没有该工程底稿，请载入它的工程 JSON。');return}await activateProject(base);notice('已切换工程。请检查片源是否对应，必要时重新选择本地视频。')};
-$('newProject').onclick=async()=>{await activateProject({version:1,revision:1,editor_id:uid(),title:'新字幕工程',colors:clone(project.colors),rows:[]},{restore:false,store:true});notice('新工程已建立并沿用当前说话者颜色：选择视频后导入字幕，或在当前位置新增。')};
+$('newProject').onclick=async()=>{await activateProject({version:1,revision:1,editor_id:uid(),title:'新字幕工程',colors:clone(project.colors),appearance:clone(project.appearance),rows:[]},{restore:false,store:true});notice('新工程已建立并沿用当前说话者颜色和字幕样式：选择视频后导入字幕，或在当前位置新增。')};
 async function importFile(file){
  const text=await file.text(),mode=$('importOrder').value;let p;
  if(/\.json$/i.test(file.name)){
   p=JSON.parse(text);
   if(p.video===project.video&&p.video&&p.revision<3&&project.revision>=3){const edits=new Map(normalizeProject(p).rows.map(r=>[r.id,r]));remember({kind:'restore',rows:clone(project.rows.filter(r=>edits.has(r.id))),colors:clone(project.colors),label:'合入旧版部分工程'});project.rows=project.rows.map(r=>edits.has(r.id)?{...r,...edits.get(r.id)}:r);project.colors=Object.assign(Object.create(null),project.colors,p.colors);drawSpeakers();trackAll();draw();notice('旧版部分工程已按编号合入，完整版后续字幕及参考底稿保留。');return}
  }else{
-  const parsed=/\.ass$/i.test(file.name)?parseASS(text,mode):{rows:parseSRT(text,mode),colors:DEFAULT_COLORS};
-  p={version:1,revision:1,editor_id:uid(),title:file.name.replace(/\.(srt|ass)$/i,''),...parsed,colors:{...project.colors,...parsed.colors}};
+  const parsed=/\.ass$/i.test(file.name)?parseASS(text,mode):{rows:parseSRT(text,mode),colors:DEFAULT_COLORS,appearance:clone(project.appearance)};
+  p={...parsed,version:1,revision:1,editor_id:uid(),title:file.name.replace(/\.(srt|ass)$/i,''),colors:{...project.colors,...parsed.colors}};
  }
  await activateProject(p,{restore:false,store:true});notice('已导入 '+project.rows.length+' 条字幕。'+(/\.ass$/i.test(file.name)?'已读取文字、时间和说话者颜色；重新导出使用本编辑器的双语排版。':''));
 }
 $('load').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{await importFile(file)}catch(err){notice('导入失败：'+err.message)}finally{e.target.value=''}};
 $('projectTitle').addEventListener('input',()=>{const name=$('projectTitle').value.trim();if(name){project.title=name;persist(null,true);registerProject()}});
 $('projectTitle').onchange=()=>{if(!$('projectTitle').value.trim())$('projectTitle').value=project.title};
+function changeAppearance(){
+ const incoming=normalizeAppearance({mode:$('subtitleMode').value,order:$('subtitleOrder').value,zhSize:Number($('zhSize').value),enSize:Number($('enSize').value),outlineWidth:Number($('outlineWidth').value),font:$('subtitleFont').value,bold:$('subtitleBold').checked});
+ if(JSON.stringify(incoming)===JSON.stringify(project.appearance)){drawAppearance();return}
+ remember({kind:'restore',rows:[],appearance:clone(project.appearance),label:'字幕样式'});project.appearance=incoming;editGroup=null;persist(null,true);draw();notice('字幕样式已更新，预览和 ASS 导出同步；文字与时间保持不变，可撤销。');
+}
+for(const id of ['subtitleMode','subtitleOrder','zhSize','enSize','outlineWidth','subtitleFont','subtitleBold'])$(id).addEventListener('change',changeAppearance);
+for(const id of ['zhSize','enSize','outlineWidth']){$(id).addEventListener('blur',changeAppearance);$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();changeAppearance()}})}
 $('speaker').addEventListener('change',()=>{$('speakerName').value=$('speaker').value;$('speakerColor').value=project.colors[$('speaker').value]});
 $('addSpeaker').onclick=()=>{const name=$('speakerName').value.trim(),color=$('speakerColor').value;if(!name||name.length>80){notice('请输入 1～80 字的说话者名称。');return}const r=project.rows[idx];remember({kind:'restore',rows:r?[clone(r)]:[],colors:clone(project.colors),label:'修改说话者与颜色'});project.colors[name]=color;if(r)project.rows[idx]={...r,speaker:name};drawSpeakers();trackAll();draw();notice('已保存说话者 '+name+' 的颜色'+(r?'；当前字幕已归给此人。':'。'))};
 $('renameSpeaker').onclick=()=>{const from=$('speaker').value,to=$('speakerName').value.trim();if(!from||!to||to.length>80){notice('请选中字幕的说话者并填写新名字。');return}if(from===to){$('addSpeaker').click();return}if(project.colors[to]){notice('该名字已存在，请用说话者下拉框更改归属。');return}const affected=project.rows.filter(r=>r.speaker===from);remember({kind:'restore',rows:clone(affected),colors:clone(project.colors),label:'重命名说话者'});project.colors[to]=$('speakerColor').value;project.rows=project.rows.map(r=>r.speaker===from?{...r,speaker:to}:r);drawSpeakers();trackAll();draw();notice('已重命名 '+affected.length+' 条；可撤销恢复旧名字。')};
@@ -311,13 +336,14 @@ function exportName(ext){if(project.editor_id==='usmp-KyLqZkfv3BU')return ext===
 function rows(){const rs=project.rows.filter(r=>r.zh.trim()||r.en.trim()).sort((a,b)=>a.start-b.start);if(!rs.length){notice('暂无字幕文字。');return null}if(rs.some(r=>!validTimes(r))){notice('有无效时间，请修正后导出。');return null}notice('已导出 '+rs.length+' 条；含单语条目 '+rs.filter(r=>!r.zh.trim()||!r.en.trim()).length+' 条。');return rs}
 function esc(s){return s.replace(/\\/g,'＼').replace(/[{}]/g,'').replace(/[\r\n]+/g,' ')}
 function buildASS(rs){
- let header='[Script Info]\nTitle: Bilingual subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n';
+ const a=project.appearance,outlined=a.mode==='outline';
+ let header='[Script Info]\nTitle: Bilingual subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\nWrapStyle: 2\n; BilingualEditorAppearance: '+JSON.stringify(a)+'\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n';
  const styles=new Map(),reserved=new Set(Object.keys(project.colors));let n=0;
- for(const [name,hex] of Object.entries(project.colors)){let style=name;if(!/^[\w-]+$/.test(name)){do{style='Speaker_'+(++n)}while(reserved.has(style));reserved.add(style)}styles.set(name,style);const c=hex.slice(1),bgr=c.slice(4,6)+c.slice(2,4)+c.slice(0,2),foreground=contrast(hex)==='#101010'?'&H00101010':'&H00FFFFFF';header+=`Style: ${style},Arial,42,${foreground},&H00FFFFFF,&H00${bgr},&H00${bgr},0,0,0,0,100,100,0,0,3,10,0,2,80,80,60,1\n`}
+ for(const [name,hex] of Object.entries(project.colors)){let style=name;if(!/^[\w-]+$/.test(name)){do{style='Speaker_'+(++n)}while(reserved.has(style));reserved.add(style)}styles.set(name,style);const c=hex.slice(1),bgr=c.slice(4,6)+c.slice(2,4)+c.slice(0,2),foreground=outlined?'&H00FFFFFF':contrast(hex)==='#101010'?'&H00101010':'&H00FFFFFF';header+=`Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined?'&H80000000':'&H00'+bgr},${a.bold?-1:0},0,0,0,100,100,0,0,${outlined?1:3},${outlined?a.outlineWidth:10},${outlined?1:0},2,80,80,60,1\n`}
  header+='\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
- return header+rs.map(r=>{const z=Math.min(42,Math.floor(1700/Math.max(1,widthUnits(r.zh)))),e=Math.min(32,Math.floor(1660/Math.max(1,widthUnits(r.en)))),parts=[],start=Math.round(r.start*100)/100,end=Math.max(start+.01,Math.round(r.end*100)/100);if(r.zh.trim())parts.push(`{\\fs${z}}${esc(r.zh)}`);if(r.en.trim())parts.push(`{\\fs${e}}${esc(r.en)}`);return`Dialogue: 0,${time(start,true)},${time(end,true)},${styles.get(r.speaker)||'Unknown'},${r.speaker.replace(/[,\r\n]/g,' ')},0,0,0,,${parts.join('\\N')}`}).join('\n')+'\n';
+ return header+rs.map(r=>{const parts=[],start=Math.round(r.start*100)/100,end=Math.max(start+.01,Math.round(r.end*100)/100);for(const language of a.order==='zh-first'?['zh','en']:['en','zh'])if(r[language].trim()){const size=Math.min(a[language+'Size'],Math.floor(1700/Math.max(1,widthUnits(r[language]))));parts.push(`{\\fs${size}}${esc(r[language])}`)}return`Dialogue: 0,${time(start,true)},${time(end,true)},${styles.get(r.speaker)||'Unknown'},${r.speaker.replace(/[,\r\n]/g,' ')},0,0,0,,${parts.join('\\N')}`}).join('\n')+'\n';
 }
-function buildSRT(rs){return rs.map((r,i)=>`${i+1}\n${time(r.start)} --> ${time(r.end)}\n${[r.zh,r.en].filter(s=>s.trim()).map(s=>s.replace(/[\r\n]+/g,' ')).join('\n')}\n`).join('\n')}
+function buildSRT(rs){return rs.map((r,i)=>`${i+1}\n${time(r.start)} --> ${time(r.end)}\n${(project.appearance.order==='zh-first'?[r.zh,r.en]:[r.en,r.zh]).filter(s=>s.trim()).map(s=>s.replace(/[\r\n]+/g,' ')).join('\n')}\n`).join('\n')}
 $('save').onclick=()=>{persist(null,true);download(exportName('json'),JSON.stringify(project,null,2))};
 $('srt').onclick=()=>{const rs=rows();if(rs)download(exportName('srt'),buildSRT(rs),'text/plain;charset=utf-8')};
 $('ass').onclick=()=>{const rs=rows();if(rs)download(exportName('ass'),buildASS(rs),'text/plain;charset=utf-8')};

@@ -15,6 +15,23 @@ function setup(p,storage={},dbData=new Map()){
 const sample={version:1,revision:1,editor_id:'test-a',title:'A',colors:{Unknown:'#455a64'},rows:[{id:'a',start:10,end:12,zh:'你好',en:'Hello.',speaker:'Unknown',status:'疑点待听校',note:''},{id:'b',start:14,end:16,zh:'下一句',en:'Next.',speaker:'Unknown',status:'疑点待听校',note:''}]};
 (async()=>{
  const a=setup(sample);await a.ready;
+ assert.equal(a.run('project.appearance.mode'),'outline');
+ assert.equal(a.el('sub').style.background,'transparent');
+ assert.equal(a.el('sub').style.color,'#ffffff');
+ assert(a.el('zh').style.webkitTextStroke.includes('#455a64'));
+ const captionBeforeStyle=a.run('JSON.stringify(project.rows)');
+ a.el('subtitleOrder').value='en-first';a.el('outlineWidth').value='4';a.run('changeAppearance()');
+ assert.equal(a.run('JSON.stringify(project.rows)'),captionBeforeStyle);
+ assert.equal(a.el('en').style.order,'0');
+ assert(a.run('buildSRT(rows())').includes('Hello.\n你好'));
+ const outlineASS=a.run('buildASS(rows())');
+ const style=outlineASS.split('\n').find(line=>line.startsWith('Style: Unknown,')).slice(7).split(',');
+ assert.equal(style[3],'&H00FFFFFF');assert.equal(style[5],'&H00645a45');assert.equal(style[7],'-1');assert.equal(style[15],'1');assert.equal(style[16],'4');
+ const importedStyle=a.run(`parseASS(${JSON.stringify(outlineASS)})`);
+ assert.equal(importedStyle.appearance.order,'en-first');assert.equal(importedStyle.appearance.outlineWidth,4);assert.equal(importedStyle.colors.Unknown,'#455a64');
+ const restoredStyle=setup(sample,a.storage,a.dbData);await restoredStyle.ready;assert.equal(restoredStyle.run('project.appearance.outlineWidth'),4);
+ a.el('subtitleMode').value='box';a.run('changeAppearance()');assert.equal(a.el('sub').style.background,'#455a64');assert(a.run('buildASS(rows())').includes(',3,10,0,2,80,80,60,1'));
+ a.el('undo').click();assert.equal(a.run('project.appearance.mode'),'outline');a.el('undo').click();assert.equal(a.run('project.appearance.order'),'zh-first');
  a.v.currentTime=10.123;a.el('setStart').click();assert.equal(a.run('project.rows[0].start'),10.123);a.el('startMinus').click();assert.equal(a.run('project.rows[0].start'),10.023);a.el('undo').click();assert.equal(a.run('project.rows[0].start'),10.123);a.el('undo').click();assert.equal(a.run('project.rows[0].start'),10);
  a.v.currentTime=13;a.el('setEnd').click();assert.equal(a.run('project.rows[0].end'),13);a.el('undo').click();
  a.v.currentTime=20;a.el('setStart').click();assert.equal(a.run('project.rows[0].start'),20);assert.equal(a.run('project.rows[0].end'),22);a.el('undo').click();
@@ -30,8 +47,9 @@ const sample={version:1,revision:1,editor_id:'test-a',title:'A',colors:{Unknown:
  a.el('zhEdit').value='英文单语的翻译';a.run("commit('zhEdit')");await a.run(`activateProject(bases.get(${JSON.stringify(savedId)}))`);assert.equal(a.run('project.rows[0].zh'),'我的修订');await a.run(`activateProject(bases.get(${JSON.stringify(otherId)}))`);assert.equal(a.run('project.rows[0].zh'),'英文单语的翻译');
  const b=setup({version:1,revision:1,editor_id:'generic-blank',title:'空白',colors:{Unknown:'#455a64'},rows:[]},a.storage,a.dbData);await b.ready;assert.equal(b.run('project.editor_id'),otherId);assert.equal(b.run('project.rows[0].zh'),'英文单语的翻译');
  const ass=a.run('buildASS(rows())'),roundtrip=a.run(`parseASS(${JSON.stringify(ass)})`);assert.equal(roundtrip.rows.length,2);assert.equal(roundtrip.rows[0].en,'English only.');assert.equal(roundtrip.rows[0].zh,'英文单语的翻译');
+ await a.run(`importFile({name:'Style-roundtrip.ass',text:async()=>${JSON.stringify(outlineASS)}})`);assert.equal(a.run('project.title'),'Style-roundtrip');assert.equal(a.run('project.appearance.order'),'en-first');assert.equal(a.run('project.appearance.outlineWidth'),4);
  await a.run("importFile({name:'Different.json',text:async()=>JSON.stringify({version:1,editor_id:'different-video',video:'OTHER_VIDEO',title:'另一个视频',rows:[{id:'new',start:1,end:2,zh:'',en:'No restriction.'}],colors:{}})})");assert.equal(a.run('project.video'),'OTHER_VIDEO');
- console.log('通过：毫秒标记、边界微调与撤销、批量范围/时长保持/越界拒绝、偏移预览、试听自动停止、快进和输入保护、单语/双语 SRT 与 ASS、跨视频 JSON、工程隔离和刷新恢复。');
+ console.log('通过：彩色描边 / 色框、双语顺序、样式暂存与撤销、ASS 样式往返；毫秒标记、边界微调、批量偏移、试听、快捷键保护、单语 / 双语导出、跨视频 JSON、工程隔离和刷新恢复。');
 })().catch(e=>{console.error(e);process.exitCode=1});
 
 const html=fs.readFileSync(require('path').join(__dirname,'index.html'),'utf8');
