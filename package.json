@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test.cjs && node collaboration.test.cjs && node --test backend/test/integration.mjs",
+    "test": "node test.cjs && node collaboration.test.cjs && node collaboration-ui.test.cjs && node --test backend/test/integration.mjs",
     "dev": "npm run build && wrangler dev",
     "types": "wrangler types",
     "check": "tsc --noEmit",
