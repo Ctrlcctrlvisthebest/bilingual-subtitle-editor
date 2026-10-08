@@ -1,0 +1,20 @@
+{
+  "name": "bilingual-subtitle-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test.cjs && node collaboration.test.cjs && node --test backend/test/integration.mjs",
+    "dev": "npm run build && wrangler dev",
+    "types": "wrangler types",
+    "check": "tsc --noEmit",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "overrides": {"sharp": "0.35.5"},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261008.1",
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.148.0"
+  }
+}

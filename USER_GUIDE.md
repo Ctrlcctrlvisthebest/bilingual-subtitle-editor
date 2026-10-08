@@ -2,6 +2,13 @@
 
 通用双语字幕编辑器
 
+多人字幕组校对
+1. 打开 [GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)，展开“字幕组 · 多人在线校对”。网页会自动填入 Cloudflare 协作后端 `https://bilingual-subtitle-editor.zoeli2010xl.workers.dev`，校对操作仍在 GitHub Pages 网页中进行。
+2. 组主创建字幕组或恢复成员备份，导入 JSON 后点击“发布当前工程到字幕组”，生成邀请链接给成员。
+3. 成员打开邀请、填写昵称后加入，打开共享工程，各自在本机载入视频。
+4. 修改自动同步，认领字幕用于分工。同条冲突会保留双方内容，选择后再同步；“本条修改记录”可以对照修订。
+5. 成员备份是登录凭证，请私下保存。字幕工程 JSON 可以照常导出和继续修改。详细规则见 [字幕组协作说明](COLLABORATION.md)。
+
 开始一个新视频
 1. 打开部署后的网页或「index.html」，点“新建工程”。可在“工程名称与说话者颜色”中修改工程名。
 2. 选择本地视频或音频，导入 SRT、ASS 或工程 JSON。导入 JSON 可直接继续其他视频的工程；无需改视频 ID。
