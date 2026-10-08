@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": {"directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"]},
   "durable_objects": {"bindings": [{"name": "SUBTITLE_GROUPS", "class_name": "SubtitleGroup"}]},
+  "ratelimits": [{"name": "CREATE_LIMIT", "namespace_id": "2026100801", "simple": {"limit": 3, "period": 60}}],
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["SubtitleGroup"]}],
   "vars": {"ALLOWED_ORIGINS": "https://ctrlcctrlvisthebest.github.io"},
   "observability": {"enabled": true, "head_sampling_rate": 0.1}
