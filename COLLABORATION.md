@@ -2,7 +2,7 @@
 
 ## 成员操作
 
-1. 打开 [GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)，展开 **字幕组 · 多人在线校对**。网页会自动填入 `https://bilingual-subtitle-editor.zoeli2010xl.workers.dev`；这是 Cloudflare 协作后端，成员在 GitHub Pages 网页中完成校对。使用自行部署的后端时，可在此修改地址。
+1. 打开 [GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)，展开 **字幕组 · 多人在线校对**。网页自动连接协作服务，成员在这里完成校对。
 2. 组主填写昵称、组名和建组密钥，创建字幕组。随后 **下载成员备份**，私下保存。这个 JSON 是成员登录凭证，不是字幕工程。
 3. 在编辑器导入已有工程 JSON，点击 **发布当前工程到字幕组**。组内可以保留多个视频工程，发布会建立一个共享副本。
 4. 组主生成邀请链接，通过自己常用的方式分享给其他成员。邀请有效期 7 天，可设置加入人数和编辑/只读权限。链接里只有邀请凭证；打开后会从地址栏移除。
@@ -18,6 +18,8 @@
 ## 部署 Cloudflare 协作后端
 
 网页前端部署在 GitHub Pages；Cloudflare 仅负责协作后端。后端采用 Workers 和 SQLite Durable Objects，每个字幕组独立存储成员、邀请、工程和修改历史。前端发布方式见 [README 的 GitHub Pages 部署说明](README.md#部署到-github-pages)。
+
+默认后端为 `https://bilingual-subtitle-editor.zoeli2010xl.workers.dev`。部署者换用其他后端时，需要同步更新前端的后端配置，重新构建并发布 `index.html`；成员无需填写连接地址。
 
 ```sh
 npm ci
