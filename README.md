@@ -6,7 +6,7 @@
 
 多人协作支持自动同步、逐条版本冲突处理、成员权限、字幕认领和修改记录。部署及成员使用方法见 [字幕组协作说明](COLLABORATION.md)。
 
-网页入口：[GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)。多人协作也在这个网页中使用，后端地址会自动填入。Cloudflare 的 `https://bilingual-subtitle-editor.zoeli2010xl.workers.dev` 仅用作协作后端，负责保存组内工程和同步修改。
+网页入口：[GitHub Pages 双语字幕编辑器](https://ctrlcctrlvisthebest.github.io/bilingual-subtitle-editor/)。多人协作也在这个网页中使用；展开字幕组面板后即可创建字幕组、恢复成员或通过邀请加入，网页自动连接协作服务。
 
 ## 部署到 GitHub Pages
 
