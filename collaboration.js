@@ -1,6 +1,7 @@
 'use strict';
 const CLOUD_SESSION_KEY='subtitle-group-connections-v1';
-const cloud={session:null,base:null,pid:null,conflicts:[],applying:false,busy:false,timer:null,poll:null,members:[],epoch:0,presenceAt:0,retryAt:0,detached:null};
+const CLOUD_DEFAULT_SERVER=location.hostname==='ctrlcctrlvisthebest.github.io'||!location.protocol.startsWith('http')?'https://bilingual-subtitle-editor.zoeli2010xl.workers.dev':location.origin;
+const cloud={server:CLOUD_DEFAULT_SERVER,session:null,base:null,pid:null,conflicts:[],applying:false,busy:false,timer:null,poll:null,members:[],epoch:0,presenceAt:0,retryAt:0,detached:null};
 const cloudDB=typeof indexedDB==='undefined'?Promise.resolve(null):new Promise(resolve=>{
  try{const req=indexedDB.open('subtitle-group-drafts',1);req.onupgradeneeded=()=>req.result.createObjectStore('drafts',{keyPath:'id'});req.onsuccess=()=>resolve(req.result);req.onerror=req.onblocked=()=>resolve(null);}catch{resolve(null);}
 });
@@ -17,8 +18,8 @@ function cloudStoreSession(session){
 }
 function cloudServer(value){
  const u=new URL(value.trim()||location.origin);
- if(u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('后端地址只填写网站域名，例如 https://字幕站.workers.dev');
- if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw Error('协作后端需要 HTTPS；本地测试可以用 localhost');
+ if(u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('字幕组连接信息无效，请重新获取邀请或成员备份');
+ if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw Error('字幕组连接需要安全地址，请联系网站管理员');
  return u.origin;
 }
 function cloudMessage(text){$('cloudStatus').textContent=text;$('cloudBar').hidden=!cloud.session;$('cloudBarText').textContent=(cloud.session?(cloud.session.groupName||'字幕组')+' · ':'')+text;}
@@ -28,7 +29,7 @@ async function cloudRequest(path,method='GET',data,auth=true,session=cloud.sessi
  const headers={'Content-Type':'application/json'};if(auth)headers.Authorization='Bearer '+session.token;
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
  try{const res=await fetch(session.server+'/api/'+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-  let body;try{body=await res.json();}catch{throw Error('后端没有返回协作接口，请检查 Cloudflare 地址');}
+  let body;try{body=await res.json();}catch{throw Error('字幕组服务返回了无效响应，请联系网站管理员');}
   if(!res.ok){const e=Error(body.error||'协作请求失败');e.status=res.status;e.data=body;throw e;}return body;
  }catch(e){if(e.name==='AbortError')throw Error('连接超时，本地修改已保留');throw e;}finally{clearTimeout(timeout);}
 }
@@ -136,7 +137,7 @@ async function cloudRefresh(){
 async function cloudAction(fn){try{await fn();}catch(e){cloudMessage(e.message);}}
 async function cloudConnect(session){
  if(cloudActive()&&collabDirty(cloud.base,project)){await cloudSaveDraft();cloudMessage('当前未同步修改已保存为离线草稿，返回该共享工程时会恢复。');}
- clearTimeout(cloud.timer);cloud.epoch++;cloud.pid=null;cloud.base=null;cloud.conflicts=[];cloudStoreSession(session);$('cloudServer').value=session.server;cloudRenderConflicts();draw();await cloudRefresh();cloudMessage('已连接字幕组，选择共享工程或发布当前工程');
+ clearTimeout(cloud.timer);cloud.epoch++;cloud.pid=null;cloud.base=null;cloud.conflicts=[];cloudStoreSession(session);cloud.server=session.server;cloudRenderConflicts();draw();await cloudRefresh();cloudMessage('已连接字幕组，选择共享工程或发布当前工程');
 }
 async function cloudOpen(pid){
  if(!pid)throw Error('请选择共享工程');
@@ -157,11 +158,11 @@ async function cloudOpen(pid){
  cloudMessage(merged.conflicts.length?'离线修改与组内版本有冲突，请选择要保留的内容':'共享工程已打开；修改会自动同步');if(!merged.conflicts.length)cloudSchedule();
 }
 $('cloudCreate').onclick=()=>cloudAction(async()=>{
- const server=cloudServer($('cloudServer').value),data=await cloudRequest('groups','POST',{name:$('cloudNewName').value.trim(),memberName:$('cloudNickname').value.trim(),createKey:$('cloudCreateKey').value},false,{server});
+ const server=cloudServer(cloud.server),data=await cloudRequest('groups','POST',{name:$('cloudNewName').value.trim(),memberName:$('cloudNickname').value.trim(),createKey:$('cloudCreateKey').value},false,{server});
  $('cloudCreateKey').value='';await cloudConnect({server,groupId:data.groupId,token:data.token,member:data.member,groupName:data.groupName});cloudMessage('字幕组已创建，请下载成员备份，然后发布工程、生成邀请。');
 });
 $('cloudJoin').onclick=()=>cloudAction(async()=>{
- const server=cloudServer($('cloudServer').value),groupId=$('cloudJoinGroup').value.trim(),data=await cloudRequest('groups/'+encodeURIComponent(groupId)+'/join','POST',{name:$('cloudNickname').value.trim(),code:$('cloudJoinCode').value.trim()},false,{server});
+ const server=cloudServer(cloud.server),groupId=$('cloudJoinGroup').value.trim(),data=await cloudRequest('groups/'+encodeURIComponent(groupId)+'/join','POST',{name:$('cloudNickname').value.trim(),code:$('cloudJoinCode').value.trim()},false,{server});
  $('cloudJoinCode').value='';await cloudConnect({server,groupId,token:data.token,member:data.member});cloudMessage('已加入字幕组，请下载成员备份，再选择共享工程。');
 });
 $('cloudReconnect').onclick=()=>cloudAction(()=>cloudConnect(cloudSessions()[Number($('cloudConnections').value)]));
@@ -176,7 +177,7 @@ $('cloudSaveNow').onclick=()=>{void cloudFlush();};
 $('cloudShowPanel').onclick=()=>{$('cloudPanel').open=true;$('cloudPanel').scrollIntoView({behavior:'smooth',block:'start'});};
 $('cloudInvite').onclick=()=>cloudAction(async()=>{
  const data=await cloudRequest(cloudPath('invites'),'POST',{role:$('cloudInviteRole').value,uses:Number($('cloudInviteUses').value),days:7});
- const u=new URL(location.href);u.hash=new URLSearchParams({subtitleGroup:cloud.session.groupId,backend:cloud.session.server,invite:data.code}).toString();
+ const u=new URL(location.href),params={subtitleGroup:cloud.session.groupId,invite:data.code};if(cloud.session.server!==CLOUD_DEFAULT_SERVER)params.backend=cloud.session.server;u.hash=new URLSearchParams(params).toString();
  $('cloudInviteLink').value=u.href;$('cloudInviteResult').hidden=false;cloudMessage('邀请链接已生成，有效期 7 天；只分享给字幕组成员。');
 });
 $('cloudResetInvites').onclick=()=>cloudAction(async()=>{await cloudRequest(cloudPath('invites/reset'),'POST',{});$('cloudInviteResult').hidden=true;$('cloudInviteLink').value='';cloudMessage('旧邀请已全部失效，已加入的成员保持原权限。');});
@@ -194,9 +195,9 @@ $('cloudHistory').onclick=()=>cloudAction(async()=>{
 function cloudInit(){
  cloudRenderConnections();cloudEditControls();cloud.poll=setInterval(()=>{void cloudPoll();},5000);
  try{const params=new URLSearchParams(location.hash.slice(1));if(params.has('subtitleGroup')){
-  $('cloudServer').value=cloudServer(params.get('backend')||'');$('cloudJoinGroup').value=params.get('subtitleGroup');$('cloudJoinCode').value=params.get('invite')||'';$('cloudPanel').open=true;$('cloudJoinDetails').open=true;
+  cloud.server=cloudServer(params.get('backend')||CLOUD_DEFAULT_SERVER);$('cloudJoinGroup').value=params.get('subtitleGroup');$('cloudJoinCode').value=params.get('invite')||'';$('cloudPanel').open=true;$('cloudJoinDetails').open=true;
   window.history.replaceState(null,'',location.pathname+location.search);cloudMessage('邀请已填写，输入昵称后点“加入字幕组”。');
- }else if(location.protocol.startsWith('http'))$('cloudServer').value=location.hostname==='ctrlcctrlvisthebest.github.io'?'https://bilingual-subtitle-editor.zoeli2010xl.workers.dev':location.origin;}catch(e){cloudMessage('邀请链接无法解析：'+e.message);}
+ }}catch(e){cloudMessage('邀请链接无法解析：'+e.message);}
 }
 // Editor undo uses `history`; the browser history is explicitly qualified above.
 window.addEventListener('beforeunload',e=>{if(cloudActive()&&(cloud.conflicts.length||collabDirty(cloud.base,project))){e.preventDefault();e.returnValue='';}});
