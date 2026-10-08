@@ -13,4 +13,12 @@ const otherAdd=structuredClone(p),mineAdd=structuredClone(p);otherAdd.rows.push(
 const restored=structuredClone(p);restored.rows.push(row('toString'));patch=call('collabPatch',base,restored);assert.equal(patch.changes[0].expected,0);assert(patch.order);
 const meta=structuredClone(p);meta.title='新标题';patch=call('collabPatch',base,meta);assert.equal(patch.meta.expected,1);assert.equal(patch.changes.length,0);
 assert.equal(call('collabDirty',base,p),false);
+const groupId='00000000-0000-4000-8000-000000000000'+'.'+'b'.repeat(64),token='a'.repeat(64);
+const leaderKey=call('collabLeaderKey',groupId,token);
+assert.deepEqual(call('collabParseLeaderKey',' \n'+leaderKey+'\n '),{groupId,token});
+for(const invalid of ['',token,leaderKey.slice(0,-1),leaderKey+'.extra',leaderKey.replace('sg1_','wr1_')])assert.throws(()=>call('collabParseLeaderKey',invalid));
+assert.throws(()=>call('collabLeaderKey','bad-group',token));
+assert.throws(()=>call('collabLeaderKey',groupId,'bad-token'));
+assert(!JSON.stringify(p).includes(token));
 console.log('通过：不同字幕同时编辑自动合并；相同字幕、删除和顺序冲突保留双方内容；逐条版本与原型键保护。');
+console.log('通过：组长密钥完整恢复及无效、截断、混用格式拒绝。');
