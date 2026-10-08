@@ -1,4 +1,13 @@
 // The editor includes this file inline. No credentials belong in a project JSON.
+function collabLeaderKey(groupId,token){
+ if(typeof groupId!=='string'||!/^[-a-f0-9]{36}\.[a-f0-9]{64}$/.test(groupId)||typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))throw Error('组长密钥信息无效');
+ return 'sg1_'+groupId+'.'+token;
+}
+function collabParseLeaderKey(value){
+ const match=typeof value==='string'&&value.trim().match(/^sg1_([-a-f0-9]{36}\.[a-f0-9]{64})\.([a-f0-9]{64})$/);
+ if(!match)throw Error('请完整粘贴以 sg1_ 开头的组长密钥');
+ return {groupId:match[1],token:match[2]};
+}
 const collabEqual=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function collabMeta(p){const {rows,...meta}=p;return meta;}
 function collabPatch(base,p){
