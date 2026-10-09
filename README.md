@@ -60,19 +60,47 @@ GitHub Pages 是静态网页，无法直接运行电脑上的 FFmpeg，所以完
 
 各工程在当前浏览器内独立暂存。关闭前建议保存 **工程 JSON**；它保留双语文字、时间、说话者颜色、状态与备注，之后可重新导入继续编辑。撤销历史仅保留在本次会话中。
 
+保存状态按工程分别记录。只有存储接口确认写入成功后，才清除对应工程的失败状态；其他工程保存成功不会掩盖失败。写入失败时保留未保存的修改并提示原因，不会显示成保存成功。小红书版可把完整工程备份原图保存到相册；浏览器版可另存工程 JSON。
+
 不同设备、浏览器和网站地址的暂存可能独立。从本地 HTML 改用网站时，请先在原编辑器保存 JSON，再到新网页导入。重新打开后需要重新选择对应的音视频。公开仓库和网站首页不内置私人字幕或片源；只有发布到字幕组的工程会保存在协作后端，并由组内成员访问。
 
 SRT 导出保留文字和毫秒时间；ASS 导出保留人物颜色描边或颜色底框，时间精度为 0.01 秒。ASS 导入读取文字、时间和说话者颜色，复杂动画、特效与原始排版会替换为本编辑器的双语排版；绘图字幕需先转换为文本。播放定位精度受视频帧率和浏览器影响。
 
 ## 修改代码
 
-可直接修改 `editor.js`、`video-export.js`、`collaboration.js` 和 `editor.template.html`，然后使用 Node.js 运行：
+编辑逻辑与平台操作通过明确接口连接。修改对应模块后重新构建，无需在构建脚本中替换函数或改写源码。
+
+| 文件 | 职责 |
+| --- | --- |
+| `project.js` | 工程与字幕数据校验、默认样式和时间精度。 |
+| `subtitle-formats.js` | SRT / ASS 导入导出、文字与时间格式；导出函数接收明确工程参数。 |
+| `editor.js` | 编辑、撤销、时间校准、工程切换及播放器状态；存储、载入片源和输出由入口传入。 |
+| `project-save-queue.js` | 合并连续编辑的保存请求，写入前复制一次工程，分别记录各工程的保存错误。 |
+| `browser-project-store.js`、`legacy-projects.js` | 浏览器存储和已发布旧版本的工程恢复。 |
+| `browser-runtime.js`、`video-export.js` | 浏览器文件输入输出、视频导出窗口和本机导出包。 |
+| `collaboration.js`、`collaboration-core.js` | 字幕组请求与界面、差异合并和冲突处理；通过编辑器公开操作和回调连接。 |
+| `minitool/` | 小红书存储、原生分片文件操作、MP4 载入、工程备份图和相册保存。 |
+
+`web-entry.js`、`offline-entry.js`、`minitool-entry.js` 分别组装三个平台所需模块。构建用 esbuild 打包对应入口，`editor.template.html` 共用编辑区域，`templates/` 提供页头、工具栏、协作和导出等小片段，`styles/` 保留共同布局与平台样式。离线入口不包含在线协作模块。
+
+先安装依赖，再按目标构建和验证：
 
 ```sh
-node build.mjs
-node test.cjs
+npm ci
 ```
 
-构建会把编辑与视频导出代码一并内嵌到 `index.html`；将它与源文件一起提交即可更新站点。测试覆盖导出 ZIP / CRC、片段时间归零、全量工程保留、无覆盖脚本、时间校准、撤销、字幕导入导出与工程暂存。
+| 目标 | 构建 | 验证 |
+| --- | --- | --- |
+| 网页版 | `npm run build` | `npm test` |
+| 离线 HTML | `npm run build:offline` | `npm run build:offline && npm test` |
+| 小红书小工具 | `npm run build:minitool` | `npm run test:minitool` |
+
+网页版生成根目录和 `dist/` 的 `index.html`，脚本内嵌在页面中，并复制网站图标。离线版生成 `dist/offline/` 的 HTML、使用说明、练习 SRT 和分享文案四个文件，可解压后直接打开。小红书版生成 `dist/minitool/` 的 `index.html`、`assets/app.js`、`assets/style.css` 和视频占位 SVG 四个文件，HTML 只引用一个外部脚本，没有内联代码或 JSON。两个离线构建都可传入输出目录，例如 `node build-offline.mjs /输出目录`。
+
+`npm test` 覆盖共同编辑功能、工程暂存和保存失败、视频导出与取消、协作请求竞争和后端集成。离线构建还检查协作代码和网络资源是否被带入。`npm run test:minitool` 会先构建，再验证平台存储、文件分片、视频、备份图、相册流程及产物限制，包括真实空白工程、练习字幕、禁止能力、相对资源路径和 Chrome 61 的布局基线。
+
+兼容处理只针对已有数据与明确的旧平台能力：浏览器旧版工程由 `legacy-projects.js` 按已知格式恢复，小红书 `compat.js` 补齐 Chrome 61 缺少的 `at`、`fromEntries` 和 `replaceChildren`。接口字段以实际契约为准，不猜测其他字段名称，也不在写入失败时改走另一个存储并伪装成功。
+
+小红书适配依据已有 reference 中的存储、文件和相册接口契约。2026-10-08 整理时，官方在线文档访问超时，未完成本次在线复核。本地测试和产物审查通过后，仍需在官方平台以及 Android、iOS 真机验证载入视频、保存与恢复工程、保存备份原图及权限拒绝行为；本地通过不等于这些平台验证已完成。
 
 如需本地预览，可在仓库目录运行 `python3 -m http.server 8000`，打开 `http://localhost:8000/`。也可直接打开 `index.html`；浏览器对本地文件暂存的支持可能不同。

@@ -20,5 +20,6 @@ projects/
 *.m4a
 *.flac
 *.srt
+!offline/练习字幕.srt
 *.ass
 *.zip

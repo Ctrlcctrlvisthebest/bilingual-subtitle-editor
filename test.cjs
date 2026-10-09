@@ -1,82 +1,229 @@
-const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const source=fs.readFileSync(require('path').join(__dirname,'editor.js'),'utf8')+'\n'+fs.readFileSync(require('path').join(__dirname,'video-export.js'),'utf8');
-function fakeDB(data=new Map()){
- const db={createObjectStore(){},transaction(){const tx={objectStore(){return{put(p){data.set(p.editor_id,JSON.parse(JSON.stringify(p)));queueMicrotask(()=>tx.oncomplete?.())},get(id){const r={};queueMicrotask(()=>{r.result=data.get(id);r.onsuccess?.()});return r}}}};return tx}};
- return{open(){const r={result:db};queueMicrotask(()=>r.onsuccess?.());return r}};
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const {test} = require('node:test');
+const {buildSync} = require('esbuild');
+const native = value => JSON.parse(JSON.stringify(value));
+const deferred = () => {
+  let resolve;
+  const promise = new Promise(yes => {resolve = yes;});
+  return {promise, resolve};
+};
+const source = buildSync({
+  stdin: {contents: "import {createEditor} from './editor.js'; import * as formats from './subtitle-formats.js'; globalThis.testAPI = {createEditor,...formats};", resolveDir: __dirname},
+  bundle: true, write: false, format: 'iife', platform: 'browser'
+}).outputFiles[0].text;
+const sample = {version: 1, editor_id: 'a', title: '测试 A', colors: {Unknown: '#455a64', Alice: '#247c98'}, rows: [
+  {id: 'one', start: 10, end: 12, zh: '你好', en: 'Hello.', speaker: 'Alice', status: '疑点待听校', note: ''},
+  {id: 'two', start: 14, end: 16, zh: '下一句', en: 'Next.', speaker: 'Unknown', status: '疑点待听校', note: ''}
+]};
+function setup(options = {}) {
+  const elements = new Map(), events = {}, windowEvents = {}, saved = new Map(), writes = [];
+  const document = {activeElement: null, getElementById: el, createElement: () => el('created-' + elements.size), addEventListener(name, fn) {events[name] = fn;}};
+  function el(id) {
+    if (elements.has(id)) return elements.get(id);
+    const handlers = {}, attrs = {};
+    const item = {id, value: '', checked: false, style: {}, textContent: '', clientWidth: 1000, selectionStart: 0, selectionEnd: 0, selectionDirection: 'none',
+      addEventListener(name, fn) {(handlers[name] ||= []).push(fn);}, removeEventListener(name, fn) {handlers[name] = (handlers[name] || []).filter(x => x !== fn);},
+      async fire(name, extra = {}) {for (const fn of handlers[name] || []) await fn({target: this, preventDefault() {}, ...extra});},
+      click() {return this.fire('click');}, replaceChildren(...children) {this.children = children;},
+      setAttribute(name, value) {attrs[name] = value;}, getAttribute(name) {return attrs[name] || null;}, removeAttribute(name) {delete attrs[name];}, closest() {return null;},
+      focus() {document.activeElement = this;}, setSelectionRange(start, end, direction) {this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction;}
+    };
+    elements.set(id, item);
+    return item;
+  }
+  const player = el('video');
+  Object.assign(player, {currentTime: 0, duration: 100, readyState: 4, paused: true, play() {this.paused = false; return Promise.resolve();}, pause() {this.paused = true;}, load() {}});
+  el('fineStep').value = '0.1'; el('offsetSeconds').value = '0'; el('offsetScope').value = 'all'; el('importOrder').value = 'auto';
+  const store = {
+    async init(project) {saved.set(project.editor_id, native(project)); if (options.init) await options.init();},
+    save(project, index) {writes.push({id: project.editor_id, index}); saved.set(project.editor_id, {...native(project), lastIndex: index});},
+    flush: options.flush || (async () => true),
+    get: async id => saved.has(id) ? native(saved.get(id)) : null,
+    list: () => [...saved.values()].map(p => ({id: p.editor_id, title: p.title})),
+    getLastId: options.getLastId || (async () => null)
+  };
+  const context = {document, window: {addEventListener(name, fn) {windowEvents[name] = fn;}}, console, crypto: require('node:crypto').webcrypto, setTimeout, clearTimeout};
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const editor = context.testAPI.createEditor({initialProject: native(options.initial || sample), store,
+    loadMedia: options.loadMedia || (async () => ({src: 'test.mp4', release() {}})), output() {}, isExportOpen: () => el('videoExportDialog').open});
+  return {editor, store, el, player, events, saved, writes, formats: context.testAPI, document};
 }
-function setup(p,storage={},dbData=new Map()){
- const elements=new Map(),events={};
- function element(id){if(!elements.has(id))elements.set(id,{value:'',style:{},textContent:'',checked:false,selectionStart:0,clientWidth:1000,attrs:{},events:{},replaceChildren(...items){this.children=items},setAttribute(k,v){this.attrs[k]=v},getAttribute(k){return this.attrs[k]??null},removeAttribute(k){delete this.attrs[k]},addEventListener(k,fn){(this.events[k]??=[]).push(fn)},removeEventListener(k,fn){this.events[k]=(this.events[k]||[]).filter(f=>f!==fn)},click(){this.onclick?.()},closest(){return null}});return elements.get(id)}
- const v=element('video');Object.assign(v,{currentTime:0,duration:100,readyState:4,paused:true,play(){this.paused=false;return Promise.resolve()},pause(){this.paused=true},load(){}});v.attrs.src='test.mp4';
- element('initial').textContent=JSON.stringify(p);element('offsetSeconds').value='0';element('offsetScope').value='all';element('fineStep').value='0.1';element('importOrder').value='auto';
- element('videoExportRange').value='all';element('videoExportMode').value='local';
- const context={document:{getElementById:element,createElement:()=>element('created-'+Math.random()),addEventListener(k,fn){events[k]=fn}},indexedDB:fakeDB(dbData),localStorage:{getItem:k=>storage[k]||null,setItem:(k,v)=>storage[k]=v,removeItem:k=>delete storage[k]},console,URL,Blob,TextEncoder,setTimeout,crypto:require('crypto').webcrypto};vm.createContext(context);vm.runInContext(source,context);
- return{el:element,v,events,storage,dbData,run:s=>vm.runInContext(s,context),ready:context.ready||vm.runInContext('ready',context)};
-}
-const sample={version:1,revision:1,editor_id:'test-a',title:'A',colors:{Unknown:'#455a64'},rows:[{id:'a',start:10,end:12,zh:'你好',en:'Hello.',speaker:'Unknown',status:'疑点待听校',note:''},{id:'b',start:14,end:16,zh:'下一句',en:'Next.',speaker:'Unknown',status:'疑点待听校',note:''}]};
-(async()=>{
- const a=setup(sample);await a.ready;
- const beforeExport=a.run('JSON.stringify(project)');
- a.el('videoExportRange').value='clip';a.el('videoExportStart').value='11';a.el('videoExportEnd').value='15';
- const exportFiles=a.run('exportPackageFiles(rows(),exportRange(),true)');
- const clippedASS=exportFiles.find(f=>f.name==='captions.ass').text;
- assert(clippedASS.includes('0:00:00.00,0:00:01.00'));assert(clippedASS.includes('0:00:03.00,0:00:04.00'));
- assert.equal(a.run('JSON.stringify(project)'),beforeExport);
- assert.equal(JSON.parse(exportFiles.find(f=>f.name==='project.json').text).rows[0].start,10);
- const script=exportFiles.find(f=>f.name==='export-mac.command').text;
- assert(script.includes('seek_args=(-ss 11)'));assert(script.includes('duration_args=(-t 4.000)'));assert(script.includes("-map '0:a:0?' -sn -dn"));assert(script.includes('-n'));assert(script.includes('h264_videotoolbox'));
- const zip=Buffer.from(await a.run('buildExportZip(exportPackageFiles(rows(),exportRange(),true)).arrayBuffer()'));
- let zipPos=0,zipCount=0;
- while(zip.readUInt32LE(zipPos)===0x04034b50){const size=zip.readUInt32LE(zipPos+18),length=zip.readUInt16LE(zipPos+26),name=zip.subarray(zipPos+30,zipPos+30+length).toString(),data=zip.subarray(zipPos+30+length,zipPos+30+length+size);assert.equal(a.run('zipCRC32(new TextEncoder().encode('+JSON.stringify(data.toString())+'))'),zip.readUInt32LE(zipPos+14));assert.equal(data.toString(),exportFiles.find(f=>f.name===name).text);zipPos+=30+length+size;zipCount++}
- assert.equal(zipCount,6);assert.equal(zip.readUInt32LE(zipPos),0x02014b50);
- assert.throws(()=>a.run('exportPackageFiles(rows(),{start:40,end:41},false)'),/没有字幕/);
- a.el('videoExportStart').value='NaN';assert.throws(()=>a.run('exportRange()'));a.el('videoExportStart').value='15';assert.throws(()=>a.run('exportRange()'));
- a.el('videoExportRange').value='all';assert.equal(a.run('clipExportRows(rows(),exportRange())[0].start'),10);
- await assert.rejects(a.run('recordVideoExport(rows(),exportRange())'),/不支持/);
- assert.equal(a.run('project.appearance.mode'),'outline');
- assert.equal(a.el('sub').style.background,'transparent');
- assert.equal(a.el('sub').style.color,'#ffffff');
- assert(a.el('zh').style.webkitTextStroke.includes('#455a64'));
- const captionBeforeStyle=a.run('JSON.stringify(project.rows)');
- a.el('subtitleOrder').value='en-first';a.el('outlineWidth').value='4';a.run('changeAppearance()');
- assert.equal(a.run('JSON.stringify(project.rows)'),captionBeforeStyle);
- assert.equal(a.el('en').style.order,'0');
- assert(a.run('buildSRT(rows())').includes('Hello.\n你好'));
- const outlineASS=a.run('buildASS(rows())');
- const style=outlineASS.split('\n').find(line=>line.startsWith('Style: Unknown,')).slice(7).split(',');
- assert.equal(style[3],'&H00FFFFFF');assert.equal(style[5],'&H00645a45');assert.equal(style[7],'-1');assert.equal(style[15],'1');assert.equal(style[16],'4');
- const importedStyle=a.run(`parseASS(${JSON.stringify(outlineASS)})`);
- assert.equal(importedStyle.appearance.order,'en-first');assert.equal(importedStyle.appearance.outlineWidth,4);assert.equal(importedStyle.colors.Unknown,'#455a64');
- const restoredStyle=setup(sample,a.storage,a.dbData);await restoredStyle.ready;assert.equal(restoredStyle.run('project.appearance.outlineWidth'),4);
- a.el('subtitleMode').value='box';a.run('changeAppearance()');assert.equal(a.el('sub').style.background,'#455a64');assert(a.run('buildASS(rows())').includes(',3,10,0,2,80,80,60,1'));
- a.el('undo').click();assert.equal(a.run('project.appearance.mode'),'outline');a.el('undo').click();assert.equal(a.run('project.appearance.order'),'zh-first');
- a.v.currentTime=10.123;a.el('setStart').click();assert.equal(a.run('project.rows[0].start'),10.123);a.el('startMinus').click();assert.equal(a.run('project.rows[0].start'),10.023);a.el('undo').click();assert.equal(a.run('project.rows[0].start'),10.123);a.el('undo').click();assert.equal(a.run('project.rows[0].start'),10);
- a.v.currentTime=13;a.el('setEnd').click();assert.equal(a.run('project.rows[0].end'),13);a.el('undo').click();
- a.v.currentTime=20;a.el('setStart').click();assert.equal(a.run('project.rows[0].start'),20);assert.equal(a.run('project.rows[0].end'),22);a.el('undo').click();
- a.el('offsetSeconds').value='-11';a.el('applyOffset').click();assert.equal(a.run('project.rows[0].start'),10);a.el('offsetSeconds').value='1.25';a.el('applyOffset').click();assert.equal(a.run('project.rows[1].start'),15.25);assert.equal(a.run('project.rows[0].end-project.rows[0].start'),2);a.el('undo').click();assert.equal(a.run('project.rows[1].start'),14);
- a.el('offsetScope').value='following';a.run('go(1)');a.el('offsetSeconds').value='-0.5';a.el('applyOffset').click();assert.equal(a.run('project.rows[0].start'),10);assert.equal(a.run('project.rows[1].start'),13.5);a.el('undo').click();
- a.run('go(0)');a.v.currentTime=11.2;a.el('alignOffset').click();assert.equal(Number(a.el('offsetSeconds').value),1.2);assert.equal(a.run('project.rows[0].start'),10);
- a.el('listenEnd').click();assert.equal(a.v.currentTime,11);assert(!a.v.paused);a.v.currentTime=12.55;a.v.ontimeupdate();assert(a.v.paused);assert.equal(a.v.currentTime,12.5);
- a.v.currentTime=7;a.el('forward5').click();assert.equal(a.v.currentTime,12);a.el('backFine').click();assert.equal(a.v.currentTime,11.9);
- const key=(key,target=a.v,extra={})=>a.events.keydown({key,code:key===' '?'Space':key,target,preventDefault(){this.defaultPrevented=true},...extra});key('ArrowRight',a.v,{shiftKey:true});assert.equal(a.v.currentTime,12);key('ArrowRight',{closest:()=>({})});assert.equal(a.v.currentTime,12);
- a.el('videoExportDialog').open=true;key('ArrowRight');assert.equal(a.v.currentTime,12);a.el('videoExportDialog').open=false;
- a.el('zhEdit').value='我的修订';a.run("commit('zhEdit')");const savedId=a.run('project.editor_id');assert.equal(a.run('project.rows[0].zh'),'我的修订');
- const english='1\n00:00:01,000 --> 00:00:02,000\nEnglish only.\n\n2\n00:00:03,000 --> 00:00:04,000\n中文字幕\nEnglish line.\n';const parsed=a.run(`parseSRT(${JSON.stringify(english)})`);assert.equal(parsed[0].en,'English only.');assert.equal(parsed[0].zh,'');assert.equal(parsed[1].zh,'中文字幕');
- await a.run(`importFile({name:'Other.srt',text:async()=>${JSON.stringify(english)}})`);const otherId=a.run('project.editor_id');assert.notEqual(otherId,savedId);assert.equal(a.run('rows().length'),2);assert(a.run('buildSRT(rows())').includes('English only.'));
- a.el('zhEdit').value='英文单语的翻译';a.run("commit('zhEdit')");await a.run(`activateProject(bases.get(${JSON.stringify(savedId)}))`);assert.equal(a.run('project.rows[0].zh'),'我的修订');await a.run(`activateProject(bases.get(${JSON.stringify(otherId)}))`);assert.equal(a.run('project.rows[0].zh'),'英文单语的翻译');
- const b=setup({version:1,revision:1,editor_id:'generic-blank',title:'空白',colors:{Unknown:'#455a64'},rows:[]},a.storage,a.dbData);await b.ready;assert.equal(b.run('project.editor_id'),otherId);assert.equal(b.run('project.rows[0].zh'),'英文单语的翻译');
- const ass=a.run('buildASS(rows())'),roundtrip=a.run(`parseASS(${JSON.stringify(ass)})`);assert.equal(roundtrip.rows.length,2);assert.equal(roundtrip.rows[0].en,'English only.');assert.equal(roundtrip.rows[0].zh,'英文单语的翻译');
- await a.run(`importFile({name:'Style-roundtrip.ass',text:async()=>${JSON.stringify(outlineASS)}})`);assert.equal(a.run('project.title'),'Style-roundtrip');assert.equal(a.run('project.appearance.order'),'en-first');assert.equal(a.run('project.appearance.outlineWidth'),4);
- await a.run("importFile({name:'Different.json',text:async()=>JSON.stringify({version:1,editor_id:'different-video',video:'OTHER_VIDEO',title:'另一个视频',rows:[{id:'new',start:1,end:2,zh:'',en:'No restriction.'}],colors:{}})})");assert.equal(a.run('project.video'),'OTHER_VIDEO');
- console.log('通过：视频导出 ZIP / CRC、片段时间归零、全量工程保留、无音轨与旧字幕轨映射、无覆盖脚本、异常区间；彩色描边 / 色框、样式往返；时间校准、撤销、单语 / 双语导出、工程隔离和刷新恢复。');
-})().catch(e=>{console.error(e);process.exitCode=1});
+async function edit(a, field, value, event = 'input') {a.el(field).value = value; await a.el(field).fire(event);}
 
-const html=fs.readFileSync(require('path').join(__dirname,'index.html'),'utf8');
-const seed=JSON.parse(html.match(/<script id="initial" type="application\/json">([\s\S]*?)<\/script>/)[1]);
-assert.equal(seed.rows.length,0);
-assert.equal(seed.editor_id,'generic-blank');
-assert(!/<video[^>]*\ssrc=/.test(html));
-assert(!/<script[^>]*\ssrc=/.test(html));
-assert(!html.includes('__PROJECT__'));
-assert(!html.includes('__SCRIPT__'));
-console.log('通过：静态首页为空白工程，无内置片源或字幕，无外部脚本。');
+test('one edit queues one save; navigation does not create a collaborative edit', async () => {
+  const a = setup(); await a.editor.ready;
+  let changes = 0;
+  a.editor.setCallbacks({onChange() {changes++;}});
+  const before = a.writes.length;
+  await edit(a, 'zhEdit', '我的修订');
+  assert.equal(a.writes.length - before, 1); assert.equal(changes, 1);
+  a.editor.go(1);
+  assert.equal(changes, 1); assert.equal(a.writes.at(-1).index, 1);
+  a.editor.go(0);
+  await edit(a, 'zhEdit', '连续输入');
+  await a.el('undo').click();
+  assert.equal(a.editor.getProject().rows[0].zh, '我的修订');
+  a.player.currentTime = 20;
+  const beforeAdd = a.writes.length;
+  await a.el('add').click();
+  assert.equal(a.writes.length - beforeAdd, 1);
+  assert.equal(a.writes.at(-1).index, a.editor.getIndex());
+  await a.el('undo').click();
+  assert.equal(a.editor.getProject().rows.length, 2);
+});
+
+test('timing, keyboard guards, offset, split/merge and undo remain functional', async () => {
+  const a = setup(); await a.editor.ready;
+  const rows = () => a.editor.getProject().rows;
+  a.player.currentTime = 10.123; await a.el('setStart').click();
+  assert.equal(rows()[0].start, 10.123);
+  await a.el('startMinus').click(); assert.equal(rows()[0].start, 10.023);
+  await a.el('undo').click(); await a.el('undo').click(); assert.equal(rows()[0].start, 10);
+  a.player.currentTime = 20; await a.el('setStart').click();
+  assert.equal(rows()[0].start, 20); assert.equal(rows()[0].end, 22); await a.el('undo').click();
+  a.el('offsetSeconds').value = '-11'; await a.el('applyOffset').click(); assert.equal(rows()[0].start, 10);
+  a.el('offsetSeconds').value = '1.25'; await a.el('applyOffset').click();
+  assert.equal(rows()[1].start, 15.25); assert.equal(rows()[0].end - rows()[0].start, 2); await a.el('undo').click();
+  a.editor.go(1); a.el('offsetScope').value = 'following'; a.el('offsetSeconds').value = '-0.5';
+  await a.el('applyOffset').click(); assert.equal(rows()[0].start, 10); assert.equal(rows()[1].start, 13.5); await a.el('undo').click();
+  a.editor.go(0); a.player.currentTime = 11.2; await a.el('alignOffset').click(); assert.equal(Number(a.el('offsetSeconds').value), 1.2);
+  await a.el('listenEnd').click(); assert.equal(a.player.currentTime, 11); assert.equal(a.player.paused, false);
+  a.player.currentTime = 12.55; await a.player.fire('timeupdate'); assert.equal(a.player.paused, true); assert.equal(a.player.currentTime, 12.5);
+  a.player.currentTime = 7; await a.el('forward5').click(); assert.equal(a.player.currentTime, 12);
+  await a.el('backFine').click(); assert.equal(a.player.currentTime, 11.9);
+  const key = (target, extra = {}) => a.events.keydown({key: 'ArrowRight', target, preventDefault() {}, ...extra});
+  key(a.player, {shiftKey: true}); assert.equal(a.player.currentTime, 12);
+  key({closest: () => ({})}); assert.equal(a.player.currentTime, 12);
+  a.el('videoExportDialog').open = true; key(a.player); assert.equal(a.player.currentTime, 12); a.el('videoExportDialog').open = false;
+  a.player.currentTime = 11; a.el('zhEdit').selectionStart = 1; a.el('enEdit').selectionStart = 3;
+  await a.el('split').click(); assert.equal(rows().length, 3); assert.equal(rows()[1].start, 11);
+  assert.equal(rows()[0].zh, '你'); assert.equal(rows()[1].zh, '好');
+  await a.el('merge').click(); assert.equal(rows().length, 2); assert.equal(rows()[0].end, 12);
+  await a.el('undo').click(); await a.el('undo').click(); assert.equal(rows()[0].zh, '你好');
+});
+
+test('outline/box styles and SRT/ASS round trips preserve text, speakers and timing', async () => {
+  const a = setup(); await a.editor.ready;
+  const before = JSON.stringify(a.editor.getProject().rows);
+  assert.equal(a.el('sub').style.background, 'transparent');
+  await edit(a, 'subtitleOrder', 'en-first', 'change'); await edit(a, 'outlineWidth', '4', 'change');
+  assert.equal(JSON.stringify(a.editor.getProject().rows), before);
+  const p = a.editor.getProject(), f = a.formats;
+  assert.equal(a.el('en').style.order, '0'); assert.ok(f.buildSRT(p.rows, p).includes('Hello.\n你好'));
+  const ass = f.buildASS(p.rows, p), parsed = f.parseASS(ass);
+  assert.equal(parsed.appearance.order, 'en-first'); assert.equal(parsed.appearance.outlineWidth, 4); assert.equal(parsed.colors.Alice, '#247c98');
+  assert.equal(parsed.rows[0].start, 10); assert.equal(parsed.rows[0].zh, '你好');
+  await edit(a, 'subtitleMode', 'box', 'change'); assert.equal(a.el('sub').style.background, '#247c98');
+  assert.ok(f.buildASS(p.rows, p).includes(',3,10,0,2,80,80,60,1'));
+  await a.el('undo').click(); assert.equal(a.editor.getProject().appearance.mode, 'outline');
+  const english = '1\n00:00:01,000 --> 00:00:02,000\nEnglish only.\n\n2\n00:00:03,000 --> 00:00:04,000\n中文字幕\nEnglish line.\n';
+  await a.editor.importFile({name: 'Other.srt', text: async () => english});
+  assert.equal(a.editor.getProject().rows[0].en, 'English only.'); assert.equal(a.editor.getProject().rows[0].zh, '');
+  await a.editor.importFile({name: 'Roundtrip.ass', text: async () => ass});
+  assert.equal(a.editor.getProject().appearance.outlineWidth, 4); assert.equal(a.editor.getProject().rows.length, 2);
+});
+
+test('remote refresh preserves focused text selection and project activation rejects obsolete requests', async () => {
+  const a = setup(); await a.editor.ready;
+  a.el('zhEdit').focus(); a.el('zhEdit').setSelectionRange(1, 2, 'forward');
+  const changed = native(a.editor.getProject()); changed.rows[0].en = 'Revised remotely.';
+  a.editor.applyProject(changed);
+  assert.equal(a.document.activeElement.id, 'zhEdit'); assert.equal(a.el('zhEdit').selectionStart, 1); assert.equal(a.el('zhEdit').selectionEnd, 2);
+  const gate = deferred();
+  const first = a.editor.activateProject({...sample, editor_id: 'obsolete'}, {canApply: () => gate.promise});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(await a.editor.activateProject({...sample, editor_id: 'current'}), true);
+  gate.resolve(true); assert.equal(await first, false); assert.equal(a.editor.getProject().editor_id, 'current');
+  assert.equal(await a.editor.activateProject({...sample, editor_id: 'denied'}, {canApply: async () => false}), false);
+  assert.equal(a.editor.getProject().editor_id, 'current');
+});
+
+test('switching projects releases late media and keeps projects and navigation separate', async () => {
+  const media = deferred(); let released = 0;
+  const a = setup({loadMedia: () => media.promise}); await a.editor.ready;
+  await edit(a, 'zhEdit', '工程 A 修订'); a.editor.go(1);
+  const selecting = a.el('videoFile').fire('change', {target: {files: [{name: 'A.mp4'}], value: 'A.mp4'}});
+  await a.editor.activateProject({...sample, editor_id: 'b', title: '工程 B'});
+  media.resolve({src: 'late-A.mp4', release() {released++;}}); await selecting;
+  assert.equal(released, 1); assert.notEqual(a.player.src, 'late-A.mp4');
+  await edit(a, 'zhEdit', '工程 B 修订');
+  await a.editor.activateProject(await a.saved.get('a'));
+  assert.equal(a.editor.getIndex(), 1); assert.equal(a.editor.getProject().rows[0].zh, '工程 A 修订');
+  await a.editor.activateProject(await a.saved.get('b'));
+  assert.equal(a.editor.getProject().rows[0].zh, '工程 B 修订');
+});
+
+test('published HTML starts with a blank project and bundles local runtime', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const seed = JSON.parse(html.match(/<script id="initial" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(seed.rows.length, 0); assert.equal(seed.editor_id, 'generic-blank');
+  assert.ok(!/<video[^>]*\ssrc=/.test(html)); assert.ok(!/<script[^>]*\ssrc=/.test(html));
+  assert.ok(!/__PROJECT__|__SCRIPT__|__TITLE__|__TOOLBAR__/.test(html));
+});
+
+test('the newest video selection wins when two native loads finish out of order', async () => {
+  const first = deferred(), second = deferred(), released = [];
+  const a = setup({loadMedia: file => file.name === 'first.mp4' ? first.promise : second.promise});
+  await a.editor.ready;
+  const select = name => a.el('videoFile').fire('change', {target: {files: [{name}], value: name}});
+  const oldLoad = select('first.mp4'), newLoad = select('second.mp4');
+  second.resolve({src: 'second.mp4', release() {released.push('second');}}); await newLoad;
+  first.resolve({src: 'first.mp4', release() {released.push('first');}}); await oldLoad;
+  assert.equal(a.player.src, 'second.mp4'); assert.equal(a.editor.getProject().mediaName, 'second.mp4');
+  assert.deepEqual(released, ['first']);
+});
+
+test('a delayed project lookup cannot undo a newer selection', async () => {
+  const a = setup(); await a.editor.ready;
+  const slow = deferred();
+  a.store.get = id => id === 'slow' ? slow.promise : Promise.resolve({...sample, editor_id: id});
+  a.el('projectPicker').value = 'slow'; const old = a.el('projectPicker').fire('change');
+  a.el('projectPicker').value = 'latest'; await a.el('projectPicker').fire('change');
+  slow.resolve({...sample, editor_id: 'slow'}); await old;
+  assert.equal(a.editor.getProject().editor_id, 'latest');
+});
+
+test('edits made during a switch save are committed before the old project detaches', async () => {
+  const a = setup(); await a.editor.ready;
+  const saving = deferred(); let flushCount = 0, committed;
+  a.store.flush = async () => {
+    const snapshot = native(a.editor.getProject());
+    if (++flushCount === 1) await saving.promise;
+    committed = snapshot;
+    return true;
+  };
+  const switching = a.editor.activateProject({...sample, editor_id: 'b'});
+  await new Promise(resolve => setImmediate(resolve));
+  await edit(a, 'zhEdit', '保存等待期间的修改');
+  saving.resolve(); await switching;
+  assert.equal(committed.editor_id, 'a'); assert.equal(committed.rows[0].zh, '保存等待期间的修改');
+  assert.equal(a.editor.getProject().editor_id, 'b');
+});
+
+test('a new project created during initialization wins over startup restoration', async () => {
+  const initializing = deferred();
+  const a = setup({initial: {...sample, editor_id: 'generic-blank', rows: []}, init: () => initializing.promise, getLastId: async () => 'previous'});
+  a.saved.set('previous', {...sample, editor_id: 'previous', title: 'Previously saved'});
+  const creating = a.el('newProject').click();
+  initializing.resolve(); await a.editor.ready; await creating;
+  assert.equal(a.editor.getProject().title, '新字幕工程');
+  assert.notEqual(a.editor.getProject().editor_id, 'previous');
+});
+
+test('the latest import wins over an older file read and a pending project lookup', async () => {
+  const a = setup(); await a.editor.ready;
+  const olderFile = deferred(), oldLookup = deferred();
+  a.store.get = () => oldLookup.promise;
+  a.el('projectPicker').value = 'lookup'; const selecting = a.el('projectPicker').fire('change');
+  const importing = a.editor.importFile({name: 'older.json', text: () => olderFile.promise});
+  await a.editor.importFile({name: 'latest.json', text: async () => JSON.stringify({...sample, editor_id: 'latest'})});
+  olderFile.resolve(JSON.stringify({...sample, editor_id: 'older'}));
+  assert.equal(await importing, false);
+  oldLookup.resolve({...sample, editor_id: 'lookup'}); await selecting;
+  assert.equal(a.editor.getProject().editor_id, 'latest');
+  assert.match(a.el('msg').textContent, /已导入/);
+});

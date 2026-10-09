@@ -1,58 +1,215 @@
 <!doctype html>
 <html lang="zh-CN">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>双语字幕编辑器</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#101722;color:#e6edf4;font:15px system-ui}main{max-width:1160px;margin:auto;padding:24px}h1{font-size:27px;margin-bottom:8px}h2{font-size:17px;margin:0 0 12px}p{color:#abb8c8;line-height:1.6}button,.file{background:#25354b;color:white;border:1px solid #405470;border-radius:8px;padding:9px 12px;cursor:pointer;display:inline-block;margin:0;font:inherit}button:hover:enabled{filter:brightness(1.18)}button:disabled{opacity:.4;cursor:default}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #91caff;outline-offset:3px}input,textarea,select{background:#172336;color:white;border:1px solid #52637a;border-radius:6px;padding:9px;font:inherit}textarea{width:100%;min-height:100px;resize:vertical}input[type=number]{width:125px}input[type=color]{width:65px;height:39px;padding:4px}input[type=checkbox]{width:auto}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.row label{display:flex;gap:8px;align-items:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.muted,small{color:#aeb9c8;line-height:1.6}.warning,#msg{color:#ffe18a}a{color:#91caff}details{border:1px solid #33435b;border-radius:10px;padding:12px;margin:14px 0}summary{cursor:pointer}kbd{font:inherit;background:#243449;border:1px solid #52637a;border-radius:4px;padding:0 5px}.player{margin:20px 0 0;padding:14px;background:#172130;border:1px solid #33435b;border-radius:14px}.player video:not([src]){display:none}.player video{display:block;width:100%;max-height:360px;margin:0 auto;background:#05090f;border-radius:9px}.playback-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}.playback-controls button{min-height:44px;font-weight:600}.seek-step{background:#2d4160;border-color:#607b9f}#playPause,.primary{background:#275e77;border-color:#4a8dab}#playbackClock{margin-left:auto;font:14px ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#d5e8ff}.playback-help{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-top:10px;font-size:12px;color:#aeb9c8}#seekFeedback{min-height:20px;color:#91caff}#screen{background:#060a10;padding:20px;min-height:110px;text-align:center;margin:12px 0}#sub{display:inline-flex;flex-direction:column;padding:10px 18px;border:3px solid #455a64;border-radius:4px;max-width:100%}#zh,#en{line-height:1.4;white-space:nowrap;paint-order:stroke fill}#zh{font-size:24px}#en{font-size:18px}.timing-panel{padding:16px;border:1px solid #455970;border-radius:12px;background:#152233}.timing-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.timing-row label{width:55px}.timing-row .stamp{font-variant-numeric:tabular-nums;width:140px}#timingHint,#offsetPreview{margin:10px 0 0;font-size:13px}.project-row select{max-width:420px}#projectTitle{width:min(460px,100%)}#mediaName{word-break:break-all}#index{width:100px}.editor-label{display:block;margin:14px 0 8px}.tip{font-size:13px;margin:8px 0}.tools{margin-top:16px}.work-header{margin-top:18px}#note{min-height:64px}#undo{margin-left:auto}
-@media(max-width:700px){main{padding:14px}.grid{grid-template-columns:1fr}.player{padding:10px}.playback-controls{gap:8px}.playback-controls button{flex:1;min-width:94px}#playbackClock{width:100%;text-align:center;margin:0}.timing-row label{width:100%}.timing-row button{flex:1}.timing-row .stamp{flex:1}.project-row select{max-width:100%}#undo{margin-left:0}.playback-help{display:block}#seekFeedback{display:block;margin-top:7px}}
-</style>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="__VIEWPORT__">
+<title>__TITLE__</title>
+__HEAD__
+__STYLES__
+</head>
+<body>
 <main>
-<h1>双语字幕编辑器</h1><p class="tip">载入本地音视频和字幕，校准时间、编辑双语台词。双语上下顺序可切换；白字配说话者颜色描边，每个工程可保存自己的样式。</p>
-<details id="cloudPanel"><summary>字幕组 · 多人在线校对</summary>
-<p class="tip">创建字幕组、邀请成员，把字幕工程放到组内一起校对。组内修改自动同步，遇到同条字幕冲突会保留两份内容供你选择。音视频由每位成员在自己的电脑载入。</p>
-<div class="row"><label>你的昵称 <input id="cloudNickname" maxlength="80" aria-label="字幕组昵称"></label></div>
-<details id="cloudCreateDetails"><summary>创建字幕组</summary><div class="row"><label>组名 <input id="cloudNewName" maxlength="100" aria-label="新字幕组名称"></label><button id="cloudCreate" class="primary">创建字幕组并生成组长密钥</button></div><small>填写昵称和组名后直接创建，组长密钥会自动生成，可复制备份或交给该组的组长。</small></details>
-<details id="cloudLeaderLoginDetails"><summary>用组长密钥连接</summary><div class="row"><label>组长密钥 <input id="cloudLeaderLogin" type="password" maxlength="200" autocomplete="off" placeholder="sg1_…" aria-label="粘贴组长密钥"></label><button id="cloudLeaderConnect" class="primary">用密钥连接</button></div><small>粘贴创建时保存的密钥，可在其他设备继续管理同一个字幕组。普通组员通过邀请加入。</small></details>
-<details id="cloudJoinDetails"><summary>通过邀请加入</summary><div class="row"><label>字幕组编号 <input id="cloudJoinGroup" aria-label="字幕组编号"></label><label>邀请码 <input id="cloudJoinCode" type="password" autocomplete="off" aria-label="字幕组邀请码"></label><button id="cloudJoin" class="primary">加入字幕组</button></div><small>打开邀请链接会自动填写字幕组编号与邀请码，输入昵称后加入。</small></details>
-<div class="row"><label>已保存的字幕组 <select id="cloudConnections" aria-label="已保存的字幕组"></select></label><button id="cloudReconnect">连接已保存字幕组</button><label class="file">恢复成员备份<input id="cloudRestore" type="file" accept=".json" hidden></label></div>
-<section id="cloudConnected" hidden><h2 id="cloudGroupName"></h2><div class="row"><label>共享工程 <select id="cloudProjects" aria-label="共享工程"></select></label><button id="cloudOpen">打开共享工程</button><button id="cloudRefresh">刷新组内列表</button><button id="cloudPublish" class="primary">发布当前工程到字幕组</button></div><small>发布时会把当前字幕、角色、备注与参考转写上传到字幕组，视频不会上传。发布为新的共享工程，本地底稿仍保留。</small>
-<div class="row"><button id="cloudSaveNow">立即同步</button><button id="cloudHistory">本条修改记录</button><button id="cloudBackup">下载成员备份</button><button id="cloudDisconnect">断开共享连接</button></div><small>成员备份含你的登录凭证，请私下保存；不要发到群里或公开仓库。换设备后可恢复，字幕工程 JSON 不含凭证。</small>
-<section id="cloudLeaderTools" hidden><h3>组长密钥</h3><div class="row"><input id="cloudOwnerKey" type="password" readonly autocomplete="off" aria-label="本组组长密钥"><button id="cloudCopyLeaderKey">复制组长密钥</button><button id="cloudShowLeaderKey">显示组长密钥</button></div><small>这串密钥可登录当前组长身份，只能管理本组。请私下保存或交给实际组长；组员使用邀请链接。</small></section>
-<details id="cloudOwnerTools" hidden><summary>组长 · 邀请与成员权限</summary><div class="row"><label>邀请权限 <select id="cloudInviteRole"><option value="editor">可编辑</option><option value="viewer">只读</option></select></label><label>最多加入人数 <input id="cloudInviteUses" type="number" min="1" max="50" value="5"></label><button id="cloudInvite">生成 7 天邀请链接</button><button id="cloudResetInvites">使旧邀请全部失效</button></div><div id="cloudInviteResult" hidden><label class="editor-label" for="cloudInviteLink">复制邀请链接分享给成员</label><input id="cloudInviteLink" readonly></div><div id="cloudMembers"></div></details>
-</section><p id="cloudStatus" role="status" aria-live="polite">本地模式：未连接字幕组。</p><div id="cloudConflicts" hidden></div><details id="cloudHistoryPanel" hidden><summary>字幕组修改记录（最近 30 条）</summary><div id="cloudHistoryList"></div></details>
+__HEADER__
+__COLLABORATION_PANEL__
+__TOOLBAR__
+__COLLABORATION_BAR__
+<details>
+<summary>工程名称与说话者颜色</summary>
+<div class="row">
+<label>工程名称 <input id="projectTitle" __PROJECT_TITLE_ATTRIBUTES__ aria-label="工程名称">
+</label>
+</div>
+<div class="row">
+<label>说话者名字 <input id="speakerName" __SPEAKER_NAME_ATTRIBUTES__ aria-label="说话者名字">
+</label>
+<label>颜色 <input id="speakerColor" aria-label="说话者颜色" type="color" value="#455a64">
+</label>
+<button id="addSpeaker">添加 / 更新并用于本条</button>
+<button id="renameSpeaker">重命名当前说话者的全部字幕</button>
+</div>
+<small>人物颜色用于文字描边；选择色框模式时用作底色。ASS 导出保留人物颜色。</small>
 </details>
-<div class="row project-row"><label>工程 <select id="projectPicker" aria-label="切换工程"></select></label><button id="newProject">新建工程</button><label class="file">载入音视频<input id="videoFile" type="file" accept="video/*,audio/*" hidden></label><label class="file">导入 SRT / ASS / JSON<input id="load" type="file" accept=".srt,.ass,.json" hidden></label></div>
-<div class="row"><button id="save">保存工程 JSON</button><button id="srt">导出 SRT</button><button id="ass">导出 ASS</button><button id="exportVideo" class="primary">导出带字幕视频</button><label>导入行序 <select id="importOrder"><option value="auto">自动识别中英文</option><option value="zh-first">第一行中文，其余英文</option><option value="en-first">第一行英文，其余中文</option></select></label></div>
-<small id="storageNotice">修改按工程分别暂存。关闭前建议保存 JSON 备份。每次重新打开工程，可重新选择对应的音视频。</small>
-<div id="cloudBar" class="row" hidden><span id="cloudBarText" role="status" aria-live="polite"></span><button id="cloudShowPanel">查看字幕组</button></div>
-<details><summary>工程名称与说话者颜色</summary><div class="row"><label>工程名称 <input id="projectTitle" aria-label="工程名称"></label></div><div class="row"><label>说话者名字 <input id="speakerName" aria-label="说话者名字"></label><label>颜色 <input id="speakerColor" aria-label="说话者颜色" type="color" value="#455a64"></label><button id="addSpeaker">添加 / 更新并用于本条</button><button id="renameSpeaker">重命名当前说话者的全部字幕</button></div><small>人物颜色用于文字描边；选择色框模式时用作底色。ASS 导出保留人物颜色。</small></details>
-<details><summary>字幕样式 · 白字 / 人物颜色描边</summary><div class="row"><label>样式 <select id="subtitleMode"><option value="outline">白字＋人物颜色描边</option><option value="box">人物颜色底框</option></select></label><label>双语顺序 <select id="subtitleOrder"><option value="zh-first">中文在上 · 英文在下</option><option value="en-first">英文在上 · 中文在下</option></select></label><label>字体 <select id="subtitleFont"><option value="Arial">Arial / 系统中文字体</option><option value="Microsoft YaHei">微软雅黑</option><option value="Noto Sans CJK SC">思源黑体 / Noto Sans CJK</option></select></label></div><div class="row"><label>中文字号 <input id="zhSize" type="number" min="20" max="90" step="1" value="48"></label><label>英文字号 <input id="enSize" type="number" min="20" max="90" step="1" value="42"></label><label>描边粗细 <input id="outlineWidth" type="number" min="1" max="8" step="0.5" value="3"></label><label><input id="subtitleBold" type="checkbox" checked>粗体</label></div><small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。保存 JSON 保留样式；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small></details>
-<section class="player" aria-label="听校播放器"><small id="mediaName"></small><video id="video" controls preload="metadata" __MEDIA__></video><div class="playback-controls" role="group" aria-label="播放控制"><button id="back5" class="seek-step" type="button" disabled title="后退 5 秒（←）">← 后退 5 秒</button><button id="playPause" type="button" disabled aria-label="播放" title="播放 / 暂停（空格）">▶ 播放</button><button id="forward5" class="seek-step" type="button" disabled title="前进 5 秒（→）">前进 5 秒 →</button><span id="playbackClock" role="timer" aria-live="off">00:00:00.000 / --:--:--.---</span></div><div class="row"><button id="backFine" type="button" disabled>−0.10 秒</button><button id="forwardFine" type="button" disabled>+0.10 秒</button><label>微调步长 <select id="fineStep"><option value="0.05">0.05 秒</option><option value="0.1" selected>0.10 秒</option><option value="0.25">0.25 秒</option><option value="0.5">0.50 秒</option></select></label></div><div class="playback-help"><span><kbd>←</kbd> / <kbd>→</kbd> 前后 5 秒 · <kbd>Shift + ← / →</kbd> 微移 · <kbd>空格</kbd> 播放 / 暂停</span><span id="seekFeedback" role="status" aria-live="polite"></span></div></section>
-<div id="screen"><div id="sub"><div id="zh"></div><div id="en"></div></div></div>
-<div class="row work-header"><button id="prev">上一条</button><input id="index" type="number" min="0" aria-label="字幕序号"><span id="count"></span><button id="next">下一条</button><button id="selectCurrent">选中当前播放字幕</button><button id="seek">播放本条</button><label><input id="loop" type="checkbox">循环本条</label><button id="undo">撤销字幕 / 时间修改</button></div>
-<section class="timing-panel" aria-label="时间校准"><h2>时间校准</h2><div class="timing-row"><label for="start">开始</label><input id="start" class="stamp" type="number" min="0" step="0.001"><button id="setStart" class="primary" title="快捷键 [">当前位置设为开始 [</button><button id="startMinus">开始 − 微调</button><button id="startPlus">开始 + 微调</button><button id="listenStart">试听开始前后</button></div><div class="timing-row"><label for="end">结束</label><input id="end" class="stamp" type="number" min="0" step="0.001"><button id="setEnd" class="primary" title="快捷键 ]">当前位置设为结束 ]</button><button id="endMinus">结束 − 微调</button><button id="endPlus">结束 + 微调</button><button id="listenEnd">试听结束前后</button></div><p id="timingHint" class="muted"></p><small>先暂停或微移到声音边界，再点按钮或按 [ / ]。输入框内保留正常输入操作；修改会检查有效区间，重叠会提示。</small>
-<details><summary>批量校准：整体提前 / 延后</summary><div class="row"><label>范围 <select id="offsetScope"><option value="all">全部字幕</option><option value="following">本条及后续</option><option value="current">仅本条</option></select></label><label>偏移秒数 <input id="offsetSeconds" type="number" step="0.001" value="0"></label><button id="alignOffset">用本条开始对齐当前位置</button><button id="applyOffset" class="primary">应用偏移</button></div><small>负数提前，正数延后。“对齐”先计算偏移，检查范围与预览后再应用；保持每条字幕时长，可撤销。</small><p id="offsetPreview" class="muted"></p></details></section>
-<div class="row"><label>说话者 <select id="speaker"></select></label><label>状态 <select id="status"><option>疑点待听校</option><option>待翻译／待听校</option><option>翻译样例／待听校</option><option>已翻译／待听校</option><option>已润色／音频转写对照</option><option>已校对</option></select></label><span id="verification" class="muted"></span></div>
-<div class="row"><span id="cueAssignment" class="muted">本条未认领</span><button id="claimCue" disabled>认领本条</button><button id="nextMine" disabled>下一条我认领的待校对字幕</button></div>
-<div class="grid"><div><label class="editor-label" for="zhEdit">中文字幕</label><textarea id="zhEdit"></textarea></div><div><label class="editor-label" for="enEdit">英文字幕</label><textarea id="enEdit"></textarea></div></div>
-<div class="row tools"><button id="split">按光标拆分本条</button><button id="merge">合并下一条</button><button id="add">在当前位置新增</button><button id="delete">删除本条</button></div><small>分别把中英文光标放在断句处。播放位置在本条内时用它作为拆分时间；否则用区间中点。</small>
-<div class="row"><input id="query" placeholder="搜索中英文或备注" aria-label="搜索字幕"><button id="find">查找下一处</button><button id="nextFlag">下一处疑点</button><input id="jumpTime" placeholder="时:分:秒 或秒数" aria-label="跳转时间"><button id="jump" title="定位视频并保留当前编辑条目；另点“选中当前播放字幕”可切换条目">跳到时间</button></div>
-<label class="editor-label" for="note">校对备注</label><textarea id="note"></textarea><details><summary>本句转写 / 原字幕参考</summary><p id="asrText"></p><small id="ytText"></small></details><p id="msg" role="status" aria-live="polite"></p>
+<details>
+<summary>字幕样式 · 白字 / 人物颜色描边</summary>
+<div class="row">
+<label>样式 <select id="subtitleMode">
+<option value="outline">白字＋人物颜色描边</option>
+<option value="box">人物颜色底框</option>
+</select>
+</label>
+<label>双语顺序 <select id="subtitleOrder">
+<option value="zh-first">中文在上 · 英文在下</option>
+<option value="en-first">英文在上 · 中文在下</option>
+</select>
+</label>
+<label>字体 <select id="subtitleFont">
+<option value="Arial">Arial / 系统中文字体</option>
+<option value="Microsoft YaHei">微软雅黑</option>
+<option value="Noto Sans CJK SC">思源黑体 / Noto Sans CJK</option>
+</select>
+</label>
+</div>
+<div class="row">
+<label>中文字号 <input id="zhSize" type="number" min="20" max="90" step="1" value="48">
+</label>
+<label>英文字号 <input id="enSize" type="number" min="20" max="90" step="1" value="42">
+</label>
+<label>描边粗细 <input id="outlineWidth" type="number" min="1" max="8" step="0.5" value="3">
+</label>
+<label>
+<input id="subtitleBold" type="checkbox" checked>粗体</label>
+</div>
+<small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。__SAVE_STYLE_NOTICE__；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small>
+</details>
+<section class="player" aria-label="听校播放器">
+<small id="mediaName">
+</small>
+<video id="video" controls preload="metadata" __VIDEO_ATTRIBUTES__>
+</video>
+<div class="playback-controls" role="group" aria-label="播放控制">
+<button id="back5" class="seek-step" type="button" disabled title="后退 5 秒（←）">← 后退 5 秒</button>
+<button id="playPause" type="button" disabled aria-label="播放" title="播放 / 暂停（空格）">▶ 播放</button>
+<button id="forward5" class="seek-step" type="button" disabled title="前进 5 秒（→）">前进 5 秒 →</button>
+<span id="playbackClock" role="timer" aria-live="off">00:00:00.000 / --:--:--.---</span>
+</div>
+<div class="row">
+<button id="backFine" type="button" disabled>−0.10 秒</button>
+<button id="forwardFine" type="button" disabled>+0.10 秒</button>
+<label>微调步长 <select id="fineStep">
+<option value="0.05">0.05 秒</option>
+<option value="0.1" selected>0.10 秒</option>
+<option value="0.25">0.25 秒</option>
+<option value="0.5">0.50 秒</option>
+</select>
+</label>
+</div>
+<div class="playback-help">
+<span>
+<kbd>←</kbd> / <kbd>→</kbd> 前后 5 秒 · <kbd>Shift + ← / →</kbd> 微移 · <kbd>空格</kbd> 播放 / 暂停</span>
+<span id="seekFeedback" role="status" aria-live="polite">
+</span>
+</div>
+</section>
+<div id="screen">
+<div id="sub">
+<div id="zh">
+</div>
+<div id="en">
+</div>
+</div>
+</div>
+<div class="row work-header">
+<button id="prev">上一条</button>
+<input id="index" type="number" min="0" aria-label="字幕序号">
+<span id="count">
+</span>
+<button id="next">下一条</button>
+<button id="selectCurrent">选中当前播放字幕</button>
+<button id="seek">播放本条</button>
+<label>
+<input id="loop" type="checkbox">循环本条</label>
+<button id="undo">撤销字幕 / 时间修改</button>
+</div>
+<section class="timing-panel" aria-label="时间校准">
+<h2>时间校准</h2>
+<div class="timing-row">
+<label for="start">开始</label>
+<input id="start" class="stamp" type="number" min="0" step="0.001">
+<button id="setStart" class="primary" title="快捷键 [">当前位置设为开始 [</button>
+<button id="startMinus">开始 − 微调</button>
+<button id="startPlus">开始 + 微调</button>
+<button id="listenStart">试听开始前后</button>
+</div>
+<div class="timing-row">
+<label for="end">结束</label>
+<input id="end" class="stamp" type="number" min="0" step="0.001">
+<button id="setEnd" class="primary" title="快捷键 ]">当前位置设为结束 ]</button>
+<button id="endMinus">结束 − 微调</button>
+<button id="endPlus">结束 + 微调</button>
+<button id="listenEnd">试听结束前后</button>
+</div>
+<p id="timingHint" class="muted">
+</p>
+<small>先暂停或微移到声音边界，再点按钮或按 [ / ]。输入框内保留正常输入操作；修改会检查有效区间，重叠会提示。</small>
+<details>
+<summary>批量校准：整体提前 / 延后</summary>
+<div class="row">
+<label>范围 <select id="offsetScope">
+<option value="all">全部字幕</option>
+<option value="following">本条及后续</option>
+<option value="current">仅本条</option>
+</select>
+</label>
+<label>偏移秒数 <input id="offsetSeconds" type="number" step="0.001" value="0">
+</label>
+<button id="alignOffset">用本条开始对齐当前位置</button>
+<button id="applyOffset" class="primary">应用偏移</button>
+</div>
+<small>负数提前，正数延后。“对齐”先计算偏移，检查范围与预览后再应用；保持每条字幕时长，可撤销。</small>
+<p id="offsetPreview" class="muted">
+</p>
+</details>
+</section>
+<div class="row">
+<label>说话者 <select id="speaker">
+</select>
+</label>
+<label>状态 <select id="status">
+<option>疑点待听校</option>
+<option>待翻译／待听校</option>
+<option>翻译样例／待听校</option>
+<option>已翻译／待听校</option>
+<option>已润色／音频转写对照</option>
+<option>已校对</option>
+</select>
+</label>
+<span id="verification" class="muted">
+</span>
+</div>
+__CUE_ASSIGNMENT__
+<div class="grid">
+<div>
+<label class="editor-label" for="zhEdit">中文字幕</label>
+<textarea id="zhEdit">
+</textarea>
+</div>
+<div>
+<label class="editor-label" for="enEdit">英文字幕</label>
+<textarea id="enEdit">
+</textarea>
+</div>
+</div>
+<div class="row tools">
+<button id="split">按光标拆分本条</button>
+<button id="merge">合并下一条</button>
+<button id="add">在当前位置新增</button>
+<button id="delete">删除本条</button>
+</div>
+<small>分别把中英文光标放在断句处。播放位置在本条内时用它作为拆分时间；否则用区间中点。</small>
+<div class="row">
+<input id="query" placeholder="搜索中英文或备注" aria-label="搜索字幕">
+<button id="find">查找下一处</button>
+<button id="nextFlag">下一处疑点</button>
+<input id="jumpTime" placeholder="时:分:秒 或秒数" aria-label="跳转时间">
+<button id="jump" title="定位视频并保留当前编辑条目；另点“选中当前播放字幕”可切换条目">跳到时间</button>
+</div>
+<label class="editor-label" for="note">校对备注</label>
+<textarea id="note">
+</textarea>
+<details>
+<summary>本句转写 / 原字幕参考</summary>
+<p id="asrText">
+</p>
+<small id="ytText">
+</small>
+</details>
+<p id="msg" role="status" aria-live="polite">
+</p>
+
+__EXTENSIONS__
+__FOOTER__
 </main>
-<dialog id="videoExportDialog" aria-labelledby="videoExportTitle">
-<div class="row export-heading"><h2 id="videoExportTitle">导出带字幕视频</h2><button id="closeVideoExport" aria-label="关闭视频导出">✕</button></div>
-<p class="tip">把当前双语文字、人物颜色和时间烧进画面。导出后，视频在其他播放器中也会显示字幕；工程 JSON 仍可继续修改、重新导出。</p>
-<div class="row"><label>导出方式 <select id="videoExportMode"><option value="local">本机高清 MP4 · 完整长视频推荐</option><option value="browser">浏览器直接导出 · 最长 5 分钟</option></select></label><label>范围 <select id="videoExportRange"><option value="all">完整视频</option><option value="clip">指定片段</option></select></label></div>
-<div id="videoExportClip" class="row" hidden><label>开始秒数 <input id="videoExportStart" type="number" min="0" step="0.001" value="0"></label><label>结束秒数 <input id="videoExportEnd" type="number" min="0" step="0.001" value="30"></label><button id="videoExportHere">从当前位置取 30 秒</button><button id="videoExportCue">使用本条字幕区间</button></div>
-<section id="localExportOptions" class="export-card"><h2>下载导出包，在电脑上生成 MP4</h2><p class="tip">① 下载并解压 ZIP　② Mac 打开 export-mac.command，选择原视频　③ 等待生成 MP4。Windows / Linux 的运行方法也在包内。</p><div class="row"><label>速度与画质 <select id="videoExportEncoder"><option value="quality">画质优先</option><option value="fast">Mac 快速导出 · 文件较大</option></select></label></div><small>首次使用需要安装 FFmpeg，包内附安装方法。导出包包含字幕 ASS 和完整工程 JSON，视频留在你自己的电脑。此按钮下载的是导出包，MP4 在本机运行后生成。</small></section>
-<section id="browserExportOptions" class="export-card" hidden><h2>直接在浏览器生成视频片段</h2><p class="tip">先载入本地视频。按正常播放速度导出，30 秒片段约需等待 30 秒；最高 720p / 30 帧。导出期间保持这个页面在前台。格式由浏览器决定：支持时使用 MP4，否则使用 WebM。</p><small>包含原视频音轨和字幕，字体使用电脑上可用的字体。完整长视频请用本机高清导出。</small></section>
-<p id="videoExportInfo" class="muted"></p>
-<canvas id="videoExportCanvas" hidden aria-label="带字幕视频导出预览"></canvas>
-<progress id="videoExportProgress" value="0" max="1" hidden aria-label="视频导出进度"></progress>
-<p id="videoExportStatus" role="status" aria-live="polite"></p>
-<div class="row"><button id="startVideoExport" class="primary">下载本机导出包 ZIP</button><button id="cancelVideoExport" hidden>取消导出</button><a id="saveVideoExport" class="file" hidden>保存生成的视频</a></div>
-</dialog>
-<style>
-#cloudPanel{border-color:#4c8fa5;background:#132435}#cloudPanel>summary{font-weight:650;color:#b8e7f4}#cloudPanel .row label{max-width:100%;white-space:nowrap}#cloudJoinGroup{width:310px}#cloudLeaderLogin,#cloudOwnerKey{width:430px}#cloudProjects{max-width:650px}#cloudInviteLink{width:100%}#cloudStatus,#cloudBarText{color:#b8e7f4}#cloudBar{border:1px solid #335a70;border-radius:8px;padding:9px}#cloudBarText{flex:1}.cloud-conflict{border:1px solid #c9864d;border-radius:10px;padding:14px;margin:12px 0;background:#30251f}.cloud-conflict h3{margin:0 0 12px;font-size:16px}.cloud-conflict pre,#cloudHistoryList pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px system-ui;line-height:1.6}#cloudMembers .row{border-top:1px solid #33435b;padding-top:10px}#cloudMembers span{flex:1}#cloudPanel input,#cloudPanel select{max-width:100%}
-[hidden]{display:none!important}#videoExportDialog{width:min(780px,calc(100% - 24px));max-height:90vh;overflow:auto;background:#142032;color:#e6edf4;border:1px solid #526985;border-radius:16px;padding:22px}#videoExportDialog::backdrop{background:#000a}.export-heading{justify-content:space-between;margin-top:0}.export-heading h2{margin:0;font-size:22px}.export-card{border:1px solid #3c536e;border-radius:10px;padding:15px;background:#1a2b40}#videoExportCanvas{display:block;width:100%;background:#000;border-radius:8px;margin-top:12px}#videoExportProgress{width:100%;height:14px;margin-top:16px;accent-color:#75c8df}#videoExportStatus{white-space:pre-line;min-height:24px;color:#ffe18a}#videoExportClip input{width:135px}#saveVideoExport{text-decoration:none}
-</style><script id="initial" type="application/json">__PROJECT__</script><script>__SCRIPT__</script></html>
+__VIDEO_EXPORT__
+__SCRIPTS__
+</body>
+</html>

@@ -4,17 +4,23 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test.cjs && node collaboration.test.cjs && node collaboration-ui.test.cjs && node --test backend/test/integration.mjs",
+    "build:offline": "node build-offline.mjs",
+    "build:minitool": "node build-minitool.mjs",
+    "test:minitool": "node minitool/test.mjs",
+    "test": "node --test test.cjs project-save-queue.test.cjs browser-project-store.test.cjs video-export.test.cjs && node collaboration.test.cjs && node collaboration-ui.test.cjs && node --test backend/test/integration.mjs",
     "dev": "npm run build && wrangler dev",
     "types": "wrangler types",
     "check": "tsc --noEmit",
     "deploy": "npm run build && wrangler deploy"
   },
-  "overrides": {"sharp": "0.35.5"},
+  "overrides": {
+    "sharp": "0.35.5"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261008.1",
     "@types/node": "^26.6.4",
     "typescript": "^7.0.2",
-    "wrangler": "^4.148.0"
+    "wrangler": "^4.148.0",
+    "esbuild": "^0.28.1"
   }
 }

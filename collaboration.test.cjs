@@ -1,6 +1,7 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const context={clone:v=>structuredClone(v)};vm.createContext(context);vm.runInContext(fs.readFileSync(__dirname+'/collaboration-core.js','utf8'),context);
-const call=(name,...args)=>{context.args=args;return JSON.parse(JSON.stringify(vm.runInContext(name+'(...args)',context)));};
+const assert=require('node:assert/strict');
+(async()=>{
+const api=await import('./collaboration-core.js');
+const call=(name,...args)=>api[name](...args);
 const row=id=>({id,start:1,end:2,zh:id,en:id,speaker:'Unknown',status:'疑点待听校',note:''});
 const p={version:1,editor_id:'shared-test',title:'工程',colors:{Unknown:'#455a64'},rows:[row('a'),row('b')]};
 const base={project:p,rowVersions:{a:1,b:1},metaVersion:1,orderVersion:1,revision:1};
@@ -22,3 +23,4 @@ assert.throws(()=>call('collabLeaderKey',groupId,'bad-token'));
 assert(!JSON.stringify(p).includes(token));
 console.log('通过：不同字幕同时编辑自动合并；相同字幕、删除和顺序冲突保留双方内容；逐条版本与原型键保护。');
 console.log('通过：组长密钥完整恢复及无效、截断、混用格式拒绝。');
+})().catch(error=>{console.error(error);process.exitCode=1;});
