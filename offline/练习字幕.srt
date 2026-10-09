@@ -1,0 +1,14 @@
+1
+00:00:00,000 --> 00:00:03,000
+今天我们试着整理一段小故事。
+Today, let's put together a short story.
+
+2
+00:00:03,500 --> 00:00:06,500
+先听清一句，再慢慢调整时间。
+Listen to one line, then adjust its timing.
+
+3
+00:00:07,000 --> 00:00:10,000
+保存好工程，下次就能接着改。
+Save the project so you can continue later.
