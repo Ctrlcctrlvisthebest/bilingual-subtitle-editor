@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#25272e"/>
+  <circle cx="320" cy="158" r="36" fill="#df3554"/>
+  <path d="M312 140l26 18-26 18z" fill="white"/>
+  <text x="320" y="230" text-anchor="middle" fill="#ddd" font-family="sans-serif" font-size="20">选择本机 MP4 开始听校</text>
+</svg>

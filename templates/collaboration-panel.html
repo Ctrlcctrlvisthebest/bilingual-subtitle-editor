@@ -1,0 +1,102 @@
+<details id="cloudPanel">
+<summary>字幕组 · 多人在线校对</summary>
+<p class="tip">创建字幕组、邀请成员，把字幕工程放到组内一起校对。组内修改自动同步，遇到同条字幕冲突会保留两份内容供你选择。音视频由每位成员在自己的电脑载入。</p>
+<div class="row">
+<label>你的昵称 <input id="cloudNickname" maxlength="80" aria-label="字幕组昵称">
+</label>
+</div>
+<details id="cloudCreateDetails">
+<summary>创建字幕组</summary>
+<div class="row">
+<label>组名 <input id="cloudNewName" maxlength="100" aria-label="新字幕组名称">
+</label>
+<button id="cloudCreate" class="primary">创建字幕组并生成组长密钥</button>
+</div>
+<small>填写昵称和组名后直接创建，组长密钥会自动生成，可复制备份或交给该组的组长。</small>
+</details>
+<details id="cloudLeaderLoginDetails">
+<summary>用组长密钥连接</summary>
+<div class="row">
+<label>组长密钥 <input id="cloudLeaderLogin" type="password" maxlength="200" autocomplete="off" placeholder="sg1_…" aria-label="粘贴组长密钥">
+</label>
+<button id="cloudLeaderConnect" class="primary">用密钥连接</button>
+</div>
+<small>粘贴创建时保存的密钥，可在其他设备继续管理同一个字幕组。普通组员通过邀请加入。</small>
+</details>
+<details id="cloudJoinDetails">
+<summary>通过邀请加入</summary>
+<div class="row">
+<label>字幕组编号 <input id="cloudJoinGroup" aria-label="字幕组编号">
+</label>
+<label>邀请码 <input id="cloudJoinCode" type="password" autocomplete="off" aria-label="字幕组邀请码">
+</label>
+<button id="cloudJoin" class="primary">加入字幕组</button>
+</div>
+<small>打开邀请链接会自动填写字幕组编号与邀请码，输入昵称后加入。</small>
+</details>
+<div class="row">
+<label>已保存的字幕组 <select id="cloudConnections" aria-label="已保存的字幕组">
+</select>
+</label>
+<button id="cloudReconnect">连接已保存字幕组</button>
+<label class="file">恢复成员备份<input id="cloudRestore" type="file" accept=".json" hidden>
+</label>
+</div>
+<section id="cloudConnected" hidden>
+<h2 id="cloudGroupName">
+</h2>
+<div class="row">
+<label>共享工程 <select id="cloudProjects" aria-label="共享工程">
+</select>
+</label>
+<button id="cloudOpen">打开共享工程</button>
+<button id="cloudRefresh">刷新组内列表</button>
+<button id="cloudPublish" class="primary">发布当前工程到字幕组</button>
+</div>
+<small>发布时会把当前字幕、角色、备注与参考转写上传到字幕组，视频不会上传。发布为新的共享工程，本地底稿仍保留。</small>
+<div class="row">
+<button id="cloudSaveNow">立即同步</button>
+<button id="cloudHistory">本条修改记录</button>
+<button id="cloudBackup">下载成员备份</button>
+<button id="cloudDisconnect">断开共享连接</button>
+</div>
+<small>成员备份含你的登录凭证，请私下保存；不要发到群里或公开仓库。换设备后可恢复，字幕工程 JSON 不含凭证。</small>
+<section id="cloudLeaderTools" hidden>
+<h3>组长密钥</h3>
+<div class="row">
+<input id="cloudOwnerKey" type="password" readonly autocomplete="off" aria-label="本组组长密钥">
+<button id="cloudCopyLeaderKey">复制组长密钥</button>
+<button id="cloudShowLeaderKey">显示组长密钥</button>
+</div>
+<small>这串密钥可登录当前组长身份，只能管理本组。请私下保存或交给实际组长；组员使用邀请链接。</small>
+</section>
+<details id="cloudOwnerTools" hidden>
+<summary>组长 · 邀请与成员权限</summary>
+<div class="row">
+<label>邀请权限 <select id="cloudInviteRole">
+<option value="editor">可编辑</option>
+<option value="viewer">只读</option>
+</select>
+</label>
+<label>最多加入人数 <input id="cloudInviteUses" type="number" min="1" max="50" value="5">
+</label>
+<button id="cloudInvite">生成 7 天邀请链接</button>
+<button id="cloudResetInvites">使旧邀请全部失效</button>
+</div>
+<div id="cloudInviteResult" hidden>
+<label class="editor-label" for="cloudInviteLink">复制邀请链接分享给成员</label>
+<input id="cloudInviteLink" readonly>
+</div>
+<div id="cloudMembers">
+</div>
+</details>
+</section>
+<p id="cloudStatus" role="status" aria-live="polite">本地模式：未连接字幕组。</p>
+<div id="cloudConflicts" hidden>
+</div>
+<details id="cloudHistoryPanel" hidden>
+<summary>字幕组修改记录（最近 30 条）</summary>
+<div id="cloudHistoryList">
+</div>
+</details>
+</details>

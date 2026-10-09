@@ -1,0 +1,20 @@
+<div class="row project-row">
+  <label>工程 <select id="projectPicker" aria-label="切换工程"></select></label>
+  <button id="newProject">新建工程</button>
+  __MEDIA_PICKER__
+  __IMPORT_PICKER__
+</div>
+<div class="row">
+  <button id="save">__SAVE_LABEL__</button>
+  <button id="srt">__SRT_LABEL__</button>
+  <button id="ass">__ASS_LABEL__</button>
+  __EXPORT_CONTROLS__
+  <label>导入行序
+    <select id="importOrder">
+      <option value="auto">自动识别中英文</option>
+      <option value="zh-first">第一行中文，其余英文</option>
+      <option value="en-first">第一行英文，其余中文</option>
+    </select>
+  </label>
+</div>
+<small id="storageNotice" role="status" aria-live="polite">__STORAGE_NOTICE__</small>

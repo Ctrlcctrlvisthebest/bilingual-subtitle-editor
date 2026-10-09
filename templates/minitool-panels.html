@@ -1,0 +1,38 @@
+<section class="mini-panel" id="miniImportPanel" hidden>
+  <h2>导入字幕文本</h2>
+  <p>在输入框中粘贴字幕内容。若设备不提供文本粘贴入口，可选择工程备份原图恢复。</p>
+  <div class="row">
+    <label>格式
+      <select id="miniImportFormat">
+        <option value="srt">SRT</option>
+        <option value="ass">ASS</option>
+        <option value="json">工程 JSON</option>
+      </select>
+    </label>
+  </div>
+  <textarea id="miniImportText" spellcheck="false" aria-label="字幕文本" placeholder="1&#10;00:00:01,000 --&gt; 00:00:03,000&#10;你好&#10;Hello."></textarea>
+  <div class="row">
+    <button id="miniApplyImport" class="primary">导入并开始编辑</button>
+    <button id="miniCloseImport">关闭</button>
+  </div>
+  <small>导入会新建或恢复相应工程；当前工程仍保留在本机列表。</small>
+</section>
+<section class="mini-panel" id="miniExportPanel" hidden>
+  <h2 id="miniExportName">字幕文本</h2>
+  <textarea id="miniExportText" readonly spellcheck="false" aria-label="生成的字幕或工程文本"></textarea>
+  <div class="row">
+    <button id="miniSelectExport">选中文本</button>
+    <button id="miniCloseExport">关闭</button>
+  </div>
+  <small>小工具不提供字幕文件下载或自动复制。跨设备继续校对请保存工程备份原图；SRT / ASS 文件与视频导出可在原网站完成。</small>
+</section>
+<section class="mini-panel" id="miniBackupPanel" hidden>
+  <h2>工程备份图</h2>
+  <p>原图包含全部双语字幕、时间、人物颜色、样式和备注。以后点“恢复工程备份图”选中它，即可继续编辑。</p>
+  <p class="warning">务必保存原图。不要截图、裁剪、压缩或通过发布笔记转存。</p>
+  <img id="miniBackupPreview" alt="包含可恢复字幕工程的备份原图">
+  <div class="row">
+    <button id="miniSaveBackupImage" class="primary" disabled>保存原图到相册</button>
+    <button id="miniCloseBackup">关闭</button>
+  </div>
+</section>

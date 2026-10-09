@@ -1,0 +1,57 @@
+<dialog id="videoExportDialog" aria-labelledby="videoExportTitle">
+<div class="row export-heading">
+<h2 id="videoExportTitle">导出带字幕视频</h2>
+<button id="closeVideoExport" aria-label="关闭视频导出">✕</button>
+</div>
+<p class="tip">把当前双语文字、人物颜色和时间烧进画面。导出后，视频在其他播放器中也会显示字幕；工程 JSON 仍可继续修改、重新导出。</p>
+<div class="row">
+<label>导出方式 <select id="videoExportMode">
+<option value="local">本机高清 MP4 · 完整长视频推荐</option>
+<option value="browser">浏览器直接导出 · 最长 5 分钟</option>
+</select>
+</label>
+<label>范围 <select id="videoExportRange">
+<option value="all">完整视频</option>
+<option value="clip">指定片段</option>
+</select>
+</label>
+</div>
+<div id="videoExportClip" class="row" hidden>
+<label>开始秒数 <input id="videoExportStart" type="number" min="0" step="0.001" value="0">
+</label>
+<label>结束秒数 <input id="videoExportEnd" type="number" min="0" step="0.001" value="30">
+</label>
+<button id="videoExportHere">从当前位置取 30 秒</button>
+<button id="videoExportCue">使用本条字幕区间</button>
+</div>
+<section id="localExportOptions" class="export-card">
+<h2>下载导出包，在电脑上生成 MP4</h2>
+<p class="tip">① 下载并解压 ZIP　② Mac 打开 export-mac.command，选择原视频　③ 等待生成 MP4。Windows / Linux 的运行方法也在包内。</p>
+<div class="row">
+<label>速度与画质 <select id="videoExportEncoder">
+<option value="quality">画质优先</option>
+<option value="fast">Mac 快速导出 · 文件较大</option>
+</select>
+</label>
+</div>
+<small>__FFMPEG_NOTICE__导出包包含字幕 ASS 和完整工程 JSON，视频留在你自己的电脑。此按钮下载的是导出包，MP4 在本机运行后生成。</small>
+</section>
+<section id="browserExportOptions" class="export-card" hidden>
+<h2>直接在浏览器生成视频片段</h2>
+<p class="tip">先载入本地视频。按正常播放速度导出，30 秒片段约需等待 30 秒；最高 720p / 30 帧。导出期间保持这个页面在前台。格式由浏览器决定：支持时使用 MP4，否则使用 WebM。</p>
+<small>包含原视频音轨和字幕，字体使用电脑上可用的字体。完整长视频请用本机高清导出。</small>
+</section>
+<p id="videoExportInfo" class="muted">
+</p>
+<canvas id="videoExportCanvas" hidden aria-label="带字幕视频导出预览">
+</canvas>
+<progress id="videoExportProgress" value="0" max="1" hidden aria-label="视频导出进度">
+</progress>
+<p id="videoExportStatus" role="status" aria-live="polite">
+</p>
+<div class="row">
+<button id="startVideoExport" class="primary">下载本机导出包 ZIP</button>
+<button id="cancelVideoExport" hidden>取消导出</button>
+<a id="saveVideoExport" class="file" hidden>保存生成的视频</a>
+</div>
+</dialog>
