@@ -33,7 +33,7 @@ const html = await renderEditor({
   EXTENSIONS: '',
   FOOTER: '',
   VIDEO_EXPORT: exporter,
-  SCRIPTS: inlineApp(script, blankProject),
+  SCRIPTS: inlineApp('/* Includes unmodified Mediabunny 1.61.3 (Vanilagy), MPL-2.0: https://www.mozilla.org/MPL/2.0/\nCorresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.tgz */\n' + script, blankProject),
 });
 await writeFile(new URL('index.html', root), html, 'utf8');
 await mkdir(new URL('dist/', root), { recursive: true });

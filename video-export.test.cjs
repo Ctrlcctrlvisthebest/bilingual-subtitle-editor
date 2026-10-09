@@ -123,7 +123,7 @@ function globalsForTest(t, values) {
   }
 }
 
-async function setupUI(t) {
+async function setupUI(t, options = {}) {
   const project = await sampleProject();
   const elements = new Map();
   const element = id => {
@@ -145,6 +145,7 @@ async function setupUI(t) {
   let paused = 0;
   const editor = {
     getProject: () => project,
+    getMediaFile: () => ({name: 'test.mp4'}),
     getIndex: () => 0,
     player,
     ready: Promise.resolve(),
@@ -155,12 +156,13 @@ async function setupUI(t) {
     download: (...args) => downloads.push(args),
   };
   const { initVideoExport } = await exportsModule;
-  const controller = initVideoExport(editor);
+  const controller = initVideoExport(editor, options);
   return { element, editor, downloads, controller, get committed() { return committed; }, get paused() { return paused; } };
 }
 
 test('export UI initializes through its editor API and reports an empty selected range', async t => {
   const ui = await setupUI(t);
+  assert.equal(ui.element('directVideoExportMode').hidden, true);
   await ui.element('exportVideo').emit('click');
   assert.equal(ui.committed, 1);
   assert.equal(ui.controller.isOpen(), true);
@@ -179,6 +181,144 @@ test('export UI initializes through its editor API and reports an empty selected
   assert.match(ui.element('videoExportStatus').textContent, /没有字幕/);
   await ui.element('closeVideoExport').emit('click');
   assert.equal(ui.controller.isOpen(), false);
+});
+
+test('direct MP4 export starts synchronously, preserves a snapshot, and completes after saving the file', async t => {
+  let invocation, finish, calls = 0;
+  const ui = await setupUI(t, {
+    exportMP4: options => {
+      calls++;
+      invocation = options;
+      return new Promise(resolve => { finish = resolve; });
+    }
+  });
+  assert.equal(ui.element('directVideoExportMode').hidden, false);
+  assert.equal(ui.element('videoExportMode').value, 'direct');
+  ui.element('videoExportEncoder').disabled = true;
+  ui.element('videoExportRange').value = 'all';
+  ui.editor.player.duration = 13920;
+  await ui.element('exportVideo').emit('click');
+  assert.equal(ui.element('directExportOptions').hidden, false);
+  assert.equal(ui.element('localExportOptions').hidden, true);
+  assert.equal(ui.element('browserExportOptions').hidden, true);
+  const exporting = ui.element('startVideoExport').emit('click');
+  assert.equal(calls, 1, 'the file picker is reached in the click event before an await');
+  assert.equal(invocation.file.name, 'test.mp4');
+  assert.equal(invocation.range.end, null);
+  assert.equal(ui.paused, 1);
+  assert.equal(ui.element('startVideoExport').disabled, true);
+  assert.equal(ui.element('cancelVideoExport').disabled, false);
+  assert.equal(ui.element('videoExportProgress').value, 0);
+  await ui.element('startVideoExport').emit('click');
+  await ui.element('exportVideo').emit('click');
+  assert.equal(calls, 1);
+  assert.equal(ui.committed, 1);
+  assert.equal((await ui.element('videoExportDialog').emit('cancel')).prevented, true);
+  await ui.element('closeVideoExport').emit('click');
+  assert.equal(ui.controller.isOpen(), true);
+
+  ui.editor.getProject().rows[0].zh = '导出期间修改';
+  assert.equal(invocation.rows[0].zh, '你好');
+  assert.equal(invocation.project.rows[0].zh, '你好');
+  invocation.onProgress({phase: 'encoding', progress: 0.25, size: 1048576});
+  assert.equal(ui.element('videoExportProgress').value, 0.25);
+  assert.match(ui.element('videoExportStatus').textContent, /25%.*1.0 MB/);
+  invocation.onProgress({phase: 'saving', progress: 1, size: 2147483648});
+  assert.equal(ui.element('videoExportProgress').value, 0.99);
+  assert.equal(ui.element('cancelVideoExport').disabled, true);
+  assert.equal(ui.element('videoExportStatus').textContent, '正在完成并保存 MP4…');
+  assert.equal(ui.element('saveVideoExport').hidden, true);
+  finish({name: '完整带字幕.mp4', width: 1920, height: 1080, size: 2147483648, duration: 13920});
+  await exporting;
+  assert.equal(ui.element('videoExportProgress').value, 1);
+  assert.match(ui.element('videoExportStatus').textContent, /MP4 已保存：完整带字幕.mp4/);
+  assert.match(ui.element('videoExportStatus').textContent, /1920 × 1080.*2.00 GB/);
+  assert.equal(ui.downloads.length, 0);
+  assert.equal(ui.element('saveVideoExport').hidden, true);
+  assert.equal(ui.element('startVideoExport').disabled, false);
+  assert.equal(ui.element('videoExportEncoder').disabled, true);
+  assert.equal(ui.element('cancelVideoExport').disabled, false);
+  assert.equal(ui.element('cancelVideoExport').hidden, true);
+  await ui.element('closeVideoExport').emit('click');
+  assert.equal(ui.controller.isOpen(), false);
+});
+
+test('direct MP4 reports a committed file as saved even if cancellation arrives during the saving phase', async t => {
+  let invocation, finish;
+  const ui = await setupUI(t, {
+    exportMP4: options => {
+      invocation = options;
+      return new Promise(resolve => { finish = resolve; });
+    }
+  });
+  await ui.element('exportVideo').emit('click');
+  const exporting = ui.element('startVideoExport').emit('click');
+  invocation.onProgress({phase: 'saving', progress: 1, size: 1048576});
+  assert.equal(ui.element('cancelVideoExport').disabled, true);
+  await ui.element('cancelVideoExport').emit('click');
+  assert.equal(invocation.signal.aborted, true);
+  finish({name: '已经保存.mp4', width: 1920, height: 1080, size: 1048576, duration: 4});
+  await exporting;
+  assert.match(ui.element('videoExportStatus').textContent, /MP4 已保存：已经保存.mp4/);
+  assert.doesNotMatch(ui.element('videoExportStatus').textContent, /取消/);
+  assert.equal(ui.element('videoExportProgress').value, 1);
+  assert.equal(ui.element('cancelVideoExport').disabled, false);
+});
+
+test('direct MP4 cancellation propagates its signal and restores controls without offering an unfinished video', async t => {
+  let signal;
+  const ui = await setupUI(t, {
+    exportMP4: options => {
+      signal = options.signal;
+      return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('cancel', 'AbortError')), {once: true}));
+    }
+  });
+  ui.element('videoExportEncoder').disabled = true;
+  await ui.element('exportVideo').emit('click');
+  const exporting = ui.element('startVideoExport').emit('click');
+  await ui.element('cancelVideoExport').emit('click');
+  await exporting;
+  assert.equal(signal.aborted, true);
+  assert.match(ui.element('videoExportStatus').textContent, /已取消导出，未保存成品/);
+  assert.equal(ui.element('videoExportProgress').hidden, true);
+  assert.equal(ui.element('saveVideoExport').hidden, true);
+  assert.equal(ui.downloads.length, 0);
+  assert.equal(ui.element('startVideoExport').disabled, false);
+  assert.equal(ui.element('videoExportEncoder').disabled, true);
+  assert.equal(ui.element('cancelVideoExport').hidden, true);
+  await ui.element('closeVideoExport').emit('click');
+  assert.equal(ui.controller.isOpen(), false);
+});
+
+test('direct MP4 reports save or codec failure without switching to another export method', async t => {
+  let calls = 0;
+  const ui = await setupUI(t, {
+    exportMP4: () => {
+      calls++;
+      throw Error('当前浏览器无法编码 H.264。');
+    }
+  });
+  await ui.element('exportVideo').emit('click');
+  await ui.element('startVideoExport').emit('click');
+  assert.equal(calls, 1);
+  assert.equal(ui.element('videoExportStatus').textContent, '当前浏览器无法编码 H.264。');
+  assert.equal(ui.element('videoExportMode').value, 'direct');
+  assert.equal(ui.element('videoExportProgress').hidden, true);
+  assert.equal(ui.element('saveVideoExport').hidden, true);
+  assert.equal(ui.downloads.length, 0);
+  assert.equal(ui.element('startVideoExport').disabled, false);
+  assert.equal(ui.element('cancelVideoExport').hidden, true);
+});
+
+test('dismissing the direct MP4 file picker is reported as cancellation', async t => {
+  const ui = await setupUI(t, {
+    exportMP4: async () => { throw new DOMException('picker dismissed', 'AbortError'); }
+  });
+  await ui.element('exportVideo').emit('click');
+  await ui.element('startVideoExport').emit('click');
+  assert.match(ui.element('videoExportStatus').textContent, /已取消导出，未保存成品/);
+  assert.equal(ui.element('startVideoExport').disabled, false);
+  assert.equal(ui.element('saveVideoExport').hidden, true);
 });
 
 test('cancelling browser preparation releases media and audio and restores controls', async t => {

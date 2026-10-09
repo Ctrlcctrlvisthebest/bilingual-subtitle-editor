@@ -26,7 +26,7 @@
 1. 打开网页，点击 **新建工程**，载入本地视频或音频。
 2. 导入 SRT、ASS 或本编辑器保存的工程 JSON；也可直接新增字幕。
 3. 修改双语文字、说话者、颜色和起止时间，保存工程 JSON，或导出 SRT / ASS。
-4. 点击 **导出带字幕视频**，可直接录制短片段，或下载本机导出包生成完整的带字幕 MP4。
+4. 点击 **导出带字幕视频**，选择 **网页直接保存 MP4**，选定保存位置，等待生成带字幕的成品视频。支持完整视频和指定片段。
 
 时间校准支持前后 5 秒、0.05–0.50 秒微移、当前位置标记开始和结束、边界试听，以及全部或后续字幕的批量提前 / 延后。字幕可拆分、合并、增删，最近 30 次修改可撤销。
 
@@ -51,10 +51,11 @@
 
 上方 **导出带字幕视频** 按钮会打开导出窗口。字幕会烧进视频画面，观看时不需要额外加载字幕。可选完整视频或指定片段，也可从当前位置取 30 秒、使用本条字幕区间。生成片段时自动调整字幕起点，完整工程 JSON 仍保留原时间与全部条目。
 
-- **本机高清 MP4**：适合完整长视频。下载 ZIP 并解压；首次安装带 libass 的 FFmpeg，Mac 双击 `export-mac.command` 选择原视频。Windows 与 Linux 的脚本和运行方法在包内。导出包包含当前 ASS、完整工程 JSON 和脚本，MP4 在脚本运行后生成。保持原分辨率与帧率，音频转为 AAC；可选画质优先或 Mac 硬件快速导出。旧的软字幕轨会排除，已经烧进源画面的字幕无法移除。编码成功后显示文件路径，生成新的 MP4，不覆盖原文件。
-- **浏览器直接导出**：适合最多 5 分钟的片段，最高 720p / 30 帧。需要载入本地视频，按正常播放速度等待，并保持页面可见。支持时输出 MP4，否则输出 WebM；完成后点击保存。可取消，取消不会保存不完整片段；窗口锁定期间不会修改正在编辑的字幕或播放位置。音频由独立播放器读取，无需麦克风或录屏权限。
+- **网页直接保存 MP4**：网页版默认方式，不需要安装工具。载入本地视频，选择保存位置，逐帧生成 H.264 / AAC MP4；双语字幕、角色颜色和当前样式直接写进画面。支持完整视频，不设 5 分钟限制，最高 1080p / 30 帧，不放大低分辨率片源。媒体数据分块写入磁盘，不把整部成品存入内存；MP4 的时间与索引数据仍随视频长度增长。速度取决于电脑与编码能力，长视频需要保持页面打开、避免电脑休眠。编码阶段可取消；最后完成文件保存时暂时禁用取消，保存成功后才显示完成。取消或失败会中止临时写入。需要支持 WebCodecs 和文件保存接口的桌面 Chrome / Edge；也会检查片源和音轨是否能编码，不会把缺少音轨的失败伪装成成功。若原视频没有音轨，生成正常的视频单轨 MP4。
+- **本机 FFmpeg 导出包**：保留原分辨率与帧率的另一种方式。下载 ZIP 并解压；首次安装带 libass 的 FFmpeg，Mac 双击 `export-mac.command` 选择原视频。Windows 与 Linux 的脚本和运行方法在包内。导出包包含当前 ASS、完整工程 JSON 和脚本，MP4 在脚本运行后生成。音频转为 AAC；可选画质优先或 Mac 硬件快速导出。旧的软字幕轨会排除，已经烧进源画面的字幕无法移除。生成新的 MP4，不覆盖原文件。
+- **浏览器录制片段**：适合最多 5 分钟的片段，最高 720p / 30 帧。需要载入本地视频，按正常播放速度等待，并保持页面可见。支持时输出 MP4，否则输出 WebM；完成后点击保存。音频由独立播放器读取，无需麦克风或录屏权限。
 
-GitHub Pages 是静态网页，无法直接运行电脑上的 FFmpeg，所以完整长视频采用本机导出包。浏览器片段使用 [Canvas captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream) 和 MediaRecorder；本机使用 [FFmpeg 的 ASS 滤镜](https://ffmpeg.org/ffmpeg-filters.html#ass)。两种方式都在本机处理文件。字体取决于系统已安装的字体，浏览器与 FFmpeg 的字距可能略有差异。
+网页 MP4 导出使用 [Mediabunny](https://mediabunny.dev/guide/converting-media-files) 和浏览器编码能力，分块读取本地片源并写入选定文件，GitHub Pages 无需运行编码服务器，也不上传视频。浏览器录制片段使用 [Canvas captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream) 和 MediaRecorder；本机导出包使用 [FFmpeg 的 ASS 滤镜](https://ffmpeg.org/ffmpeg-filters.html#ass)。字体取决于系统已安装的字体，浏览器与 FFmpeg 的字距可能略有差异。离线 HTML 保留录制片段和 FFmpeg 导出包；小红书工具不包含网页 MP4 编码能力。第三方代码说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 保存与迁移
 
@@ -78,6 +79,7 @@ SRT 导出保留文字和毫秒时间；ASS 导出保留人物颜色描边或颜
 | `project-save-queue.js` | 合并连续编辑的保存请求，写入前复制一次工程，分别记录各工程的保存错误。 |
 | `browser-project-store.js`、`legacy-projects.js` | 浏览器存储和已发布旧版本的工程恢复。 |
 | `browser-runtime.js`、`video-export.js` | 浏览器文件输入输出、视频导出窗口和本机导出包。 |
+| `direct-video-export.js`、`subtitle-renderer.js` | 网页 MP4 编码与文件提交、共同字幕绘制和活动字幕索引。 |
 | `collaboration.js`、`collaboration-core.js` | 字幕组请求与界面、差异合并和冲突处理；通过编辑器公开操作和回调连接。 |
 | `minitool/` | 小红书存储、原生分片文件操作、MP4 载入、工程备份图和相册保存。 |
 

@@ -177,6 +177,27 @@ test('the newest video selection wins when two native loads finish out of order'
   assert.deepEqual(released, ['first']);
 });
 
+test('direct export receives the current project media file after switching projects and replacing a source', async () => {
+  const released = [], a = setup({loadMedia: async file => ({file, src: file.name, release() {released.push(file.name);}})});
+  await a.editor.ready;
+  const select = file => a.el('videoFile').fire('change', {target: {files: [file], value: file.name}});
+  assert.equal(a.editor.getMediaFile(), undefined);
+  const first = {name: 'A.mp4'}, second = {name: 'B.mp4'}, replacement = {name: 'A-revised.mp4'};
+  await select(first);
+  assert.equal(a.editor.getMediaFile(), first);
+  await a.editor.activateProject({...sample, editor_id: 'b', title: '工程 B'});
+  assert.equal(a.editor.getMediaFile(), undefined, 'another project cannot export the previous project video');
+  await select(second);
+  assert.equal(a.editor.getMediaFile(), second);
+  await a.editor.activateProject(await a.saved.get('a'));
+  assert.equal(a.editor.getMediaFile(), first);
+  await select(replacement);
+  assert.equal(a.editor.getMediaFile(), replacement);
+  assert.deepEqual(released, ['A.mp4']);
+  await a.editor.activateProject(await a.saved.get('b'));
+  assert.equal(a.editor.getMediaFile(), second);
+});
+
 test('a delayed project lookup cannot undo a newer selection', async () => {
   const a = setup(); await a.editor.ready;
   const slow = deferred();

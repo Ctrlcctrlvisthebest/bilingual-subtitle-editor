@@ -42,7 +42,7 @@ export function createBrowserEditor({isExportOpen}) {
     store, output: download, isExportOpen,
     loadMedia: async file => {
       const src = URL.createObjectURL(file);
-      return {src, release: () => URL.revokeObjectURL(src)};
+      return {src, file, release: () => URL.revokeObjectURL(src)};
     }
   });
   $('load').addEventListener('change', async event => {

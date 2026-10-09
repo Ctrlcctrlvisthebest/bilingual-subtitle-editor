@@ -1,5 +1,6 @@
 import { clone, roundTime, validTimes } from "./project.js";
-import { playbackTime, widthUnits, contrast, buildASS, exportName } from "./subtitle-formats.js";
+import { playbackTime, buildASS, exportName } from "./subtitle-formats.js";
+import { paintVideoExport } from "./subtitle-renderer.js";
 const BROWSER_EXPORT_LIMIT = 300;
 function parseExportRange(mode, startValue, endValue) {
   if (mode === "all") return { start: 0, end: null };
@@ -189,56 +190,6 @@ Linux
     { name: "README.txt", text: readme }
   ];
 }
-function paintVideoExport(canvas, media, rs, appearance, colors, t) {
-  const ctx = canvas.getContext("2d"), scale = canvas.height / 1080;
-  ctx.drawImage(media, 0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.lineJoin = "round";
-  let bottom = canvas.height - 60 * scale;
-  for (const r of rs.filter((r2) => r2.start <= t && r2.end > t).reverse()) {
-    const color = colors[r.speaker] || "#455a64", outline = appearance.mode === "outline", lines = [];
-    for (const language of appearance.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) {
-      const text = r[language].replace(/[\r\n]+/g, " ").trim();
-      if (!text) continue;
-      let size = Math.min(appearance[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(text)))) * scale;
-      const font = (s) => (appearance.bold ? "700 " : "400 ") + s + 'px "' + appearance.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.font = font(size);
-      const measured = ctx.measureText(text).width, available = canvas.width - 160 * scale;
-      if (measured > available) {
-        size *= available / measured;
-        ctx.font = font(size);
-      }
-      const metrics = ctx.measureText(text);
-      lines.push({ text, size, font: font(size), width: metrics.width, descent: metrics.actualBoundingBoxDescent ?? size * 0.2 });
-    }
-    if (!lines.length) continue;
-    const height = lines.reduce((n, line) => n + line.size * 1.3, 0), padding = 10 * scale;
-    if (!outline) {
-      const width = Math.max(...lines.map((line) => line.width));
-      ctx.fillStyle = color;
-      ctx.fillRect((canvas.width - width) / 2 - padding, bottom - height - padding, width + 2 * padding, height + 2 * padding);
-    }
-    let y = bottom;
-    for (const line of lines.reverse()) {
-      ctx.font = line.font;
-      ctx.shadowColor = outline ? "#0008" : "transparent";
-      ctx.shadowBlur = outline ? scale : 0;
-      ctx.shadowOffsetY = outline ? scale : 0;
-      if (outline) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = appearance.outlineWidth * 2 * scale;
-        ctx.strokeText(line.text, canvas.width / 2, y - line.descent);
-      }
-      ctx.fillStyle = outline ? "#ffffff" : contrast(color);
-      ctx.fillText(line.text, canvas.width / 2, y - line.descent);
-      y -= line.size * 1.3;
-    }
-    bottom -= height + 20 * scale;
-  }
-  ctx.restore();
-}
 function waitExportMedia(media, event, job, trigger) {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
@@ -276,9 +227,11 @@ function waitExportMedia(media, event, job, trigger) {
     }
   });
 }
-function initVideoExport(editor) {
+function initVideoExport(editor, {exportMP4} = {}) {
   const $ = (id) => document.getElementById(id), player = editor.player, dialog = $("videoExportDialog");
   let videoExportJob = null, videoExportResult = null;
+  $("directVideoExportMode").hidden = !exportMP4;
+  if (exportMP4) $("videoExportMode").value = "direct";
   const exportRange = () => parseExportRange($("videoExportRange").value, $("videoExportStart").value, $("videoExportEnd").value);
   function mediaReady(show = false) {
     const ready = player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0 && !player.error;
@@ -291,18 +244,45 @@ function initVideoExport(editor) {
     $("saveVideoExport").hidden = true;
     $("saveVideoExport").removeAttribute("href");
   }
+  function formatFileSize(bytes) {
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    return (bytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
+  }
+  function beginExportJob(status) {
+    const job = { controller: new AbortController(), previousDisabled: new Map() };
+    videoExportJob = job;
+    clearVideoExportResult();
+    editor.pause();
+    for (const el of dialog.querySelectorAll("button,input,select")) {
+      job.previousDisabled.set(el, el.disabled);
+      el.disabled = el.id !== "cancelVideoExport";
+    }
+    $("cancelVideoExport").hidden = false;
+    $("videoExportProgress").hidden = false;
+    $("videoExportProgress").value = 0;
+    $("videoExportStatus").textContent = status;
+    return job;
+  }
+  function finishExportJob(job) {
+    videoExportJob = null;
+    for (const [el, disabled] of job.previousDisabled) el.disabled = disabled;
+    $("cancelVideoExport").hidden = true;
+  }
   function updateVideoExportOptions() {
-    const browser = $("videoExportMode").value === "browser";
-    $("localExportOptions").hidden = browser;
-    $("browserExportOptions").hidden = !browser;
+    const mode = $("videoExportMode").value;
+    $("localExportOptions").hidden = mode !== "local";
+    $("browserExportOptions").hidden = mode !== "browser";
+    $("directExportOptions").hidden = mode !== "direct";
     $("videoExportClip").hidden = $("videoExportRange").value !== "clip";
-    $("startVideoExport").textContent = browser ? "开始导出视频片段" : "下载本机导出包 ZIP";
+    $("startVideoExport").textContent = mode === "direct" ? "选择位置并导出 MP4" : mode === "browser" ? "开始导出视频片段" : "下载本机导出包 ZIP";
     const project = editor.getProject(), a = project.appearance;
     let text = (project.mediaName ? "片源：" + project.mediaName + " · " : "") + project.rows.length + " 条字幕 · " + (a.order === "zh-first" ? "中文在上" : "英文在上") + " · " + (a.mode === "outline" ? "人物颜色描边" : "人物颜色底框");
     try {
       const range = exportRange();
       text += "\n" + (range.end === null ? "完整视频" + (mediaReady() ? " · " + playbackTime(player.duration) : "") : "片段 " + playbackTime(range.start) + " → " + playbackTime(range.end) + " · " + (range.end - range.start).toFixed(3) + " 秒");
-      if (browser) {
+      if (mode === "direct") text += " · 输出 MP4";
+      else if (mode === "browser") {
         const type = browserExportType();
         if (!type) text += "\n当前浏览器不支持直接导出，请选择本机高清 MP4。";
         else text += " · 输出 " + (type.includes("mp4") ? "MP4" : "WebM");
@@ -318,6 +298,36 @@ function initVideoExport(editor) {
     $("videoExportEnd").value = String(roundTime(end));
     updateVideoExportOptions();
   }
+  async function saveDirectMP4(rs, range, project) {
+    if (!exportMP4) throw Error("当前版本未提供直接 MP4 导出。");
+    const file = editor.getMediaFile();
+    if (!file) throw Error("请先载入本地视频。");
+    const job = beginExportJob("请选择 MP4 保存位置…");
+    const canvas = $("videoExportCanvas");
+    canvas.hidden = true;
+    try {
+      const result = await exportMP4({
+        file, project: clone(project), rows: clone(rs), range,
+        canvas, signal: job.controller.signal,
+        onProgress: ({phase, progress, size}) => {
+          const completed = Math.min(progress, 0.99);
+          canvas.hidden = false;
+          $("videoExportProgress").value = completed;
+          if (phase === "saving") {
+            $("cancelVideoExport").disabled = true;
+            $("videoExportStatus").textContent = "正在完成并保存 MP4…";
+          } else $("videoExportStatus").textContent = "正在导出 MP4 · " + Math.floor(completed * 100) + "% · 已写入 " + formatFileSize(size);
+        }
+      });
+      $("videoExportProgress").value = 1;
+      $("videoExportStatus").textContent = "MP4 已保存：" + result.name + "\n" + result.width + " × " + result.height + " · " + playbackTime(result.duration) + " · " + formatFileSize(result.size) + "\n字幕已写进画面，可直接播放或分享。";
+    } catch (err) {
+      if (job.controller.signal.aborted || err.name === "AbortError") throw new DOMException("已取消导出，未保存成品。", "AbortError");
+      throw err;
+    } finally {
+      finishExportJob(job);
+    }
+  }
   async function recordVideoExport(rs, range, project) {
     const mimeType = browserExportType(), AudioCtor = globalThis.AudioContext || globalThis.webkitAudioContext;
     if (!mimeType || !AudioCtor || !$("videoExportCanvas").captureStream) throw Error("当前浏览器不支持直接视频导出，请使用本机高清 MP4。");
@@ -327,20 +337,8 @@ function initVideoExport(editor) {
     if (end - start > BROWSER_EXPORT_LIMIT + 1e-3) throw Error("浏览器最多导出 5 分钟，请选择短片段；完整长视频用本机高清 MP4。");
     const src = player.currentSrc || player.getAttribute("src");
     const a = clone(project.appearance), colors = clone(project.colors), snapshot = clone(rs);
-    const job = { controller: new AbortController() }, canvas = $("videoExportCanvas"), media = document.createElement("video");
-    const previousDisabled = /* @__PURE__ */ new Map();
+    const job = beginExportJob("正在准备片段与音轨…"), canvas = $("videoExportCanvas"), media = document.createElement("video");
     let audio, stream, recorder, raf = null, watchdog = null, chunks = [], bytes = 0;
-    videoExportJob = job;
-    clearVideoExportResult();
-    editor.pause();
-    for (const el of $("videoExportDialog").querySelectorAll("button,input,select")) {
-      previousDisabled.set(el, el.disabled);
-      el.disabled = el.id !== "cancelVideoExport";
-    }
-    $("cancelVideoExport").hidden = false;
-    $("videoExportProgress").hidden = false;
-    $("videoExportProgress").value = 0;
-    $("videoExportStatus").textContent = "正在准备片段与音轨…";
     media.preload = "auto";
     media.playsInline = true;
     media.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
@@ -441,7 +439,7 @@ function initVideoExport(editor) {
       link.download = exportName(project, ext).replace("." + ext, "-带字幕片段." + ext);
       link.textContent = "保存 " + ext.toUpperCase() + " 视频";
       link.hidden = false;
-      const fileSize = blob.size < 1024 * 1024 ? (blob.size / 1024).toFixed(0) + " KB" : (blob.size / 1024 / 1024).toFixed(1) + " MB";
+      const fileSize = formatFileSize(blob.size);
       $("videoExportProgress").value = 1;
       $("videoExportStatus").textContent = "导出完成，字幕已写进画面，点击下方保存视频。\n" + canvas.width + " × " + canvas.height + " · " + fileSize;
     } finally {
@@ -454,14 +452,13 @@ function initVideoExport(editor) {
       media.load();
       media.remove();
       chunks = [];
-      videoExportJob = null;
-      for (const [el, disabled] of previousDisabled) el.disabled = disabled;
-      $("cancelVideoExport").hidden = true;
+      finishExportJob(job);
       if (audio && audio.state !== "closed") await audio.close();
     }
   }
   $("exportVideo").addEventListener("click", async () => {
     await editor.ready;
+    if (videoExportJob) return;
     editor.commitTimes();
     $("videoExportStatus").textContent = "";
     $("videoExportCanvas").hidden = true;
@@ -495,12 +492,16 @@ function initVideoExport(editor) {
   });
   $("cancelVideoExport").addEventListener("click", () => videoExportJob?.controller.abort());
   $("startVideoExport").addEventListener("click", async () => {
+    if (videoExportJob) return;
     try {
       updateVideoExportOptions();
       const rs = editor.exportRows();
       if (!rs) throw Error("请先导入或填写字幕文字。");
       const range = exportRange(), project = editor.getProject();
-      if ($("videoExportMode").value === "browser") {
+      if ($("videoExportMode").value === "direct") {
+        if (!clipExportRows(rs, range).length) throw Error("所选区间没有字幕。请选择包含字幕的片段。");
+        await saveDirectMP4(rs, range, project);
+      } else if ($("videoExportMode").value === "browser") {
         if (!clipExportRows(rs, range).length) throw Error("所选区间没有字幕。请选择包含字幕的片段。");
         await recordVideoExport(rs, range, project);
       } else {

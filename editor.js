@@ -772,7 +772,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
       notice("工程恢复失败：" + error.message);
     }
   })();
-  return { ready, player, getProject: () => project, getIndex: () => idx, notice, activateProject, applyProject, replaceRows, save, flushSave: () => store.flush(), redraw: draw, setCallbacks(value) {
+  return { ready, player, getProject: () => project, getMediaFile: () => mediaSources.get(project.editor_id)?.handle.file, getIndex: () => idx, notice, activateProject, applyProject, replaceRows, save, flushSave: () => store.flush(), redraw: draw, setCallbacks(value) {
     callbacks = value;
   }, go, pause, stopLoop, releaseMedia, commitTimes, importFile, exportRows, download: output };
 }

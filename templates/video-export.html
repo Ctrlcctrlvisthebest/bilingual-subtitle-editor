@@ -6,8 +6,9 @@
 <p class="tip">把当前双语文字、人物颜色和时间烧进画面。导出后，视频在其他播放器中也会显示字幕；工程 JSON 仍可继续修改、重新导出。</p>
 <div class="row">
 <label>导出方式 <select id="videoExportMode">
-<option value="local">本机高清 MP4 · 完整长视频推荐</option>
-<option value="browser">浏览器直接导出 · 最长 5 分钟</option>
+<option id="directVideoExportMode" value="direct" hidden>直接保存 MP4 · 完整视频 / 片段</option>
+<option value="local" selected>本机 FFmpeg 导出包 · 原分辨率</option>
+<option value="browser">浏览器录制片段 · 最长 5 分钟</option>
 </select>
 </label>
 <label>范围 <select id="videoExportRange">
@@ -24,6 +25,11 @@
 <button id="videoExportHere">从当前位置取 30 秒</button>
 <button id="videoExportCue">使用本条字幕区间</button>
 </div>
+<section id="directExportOptions" class="export-card" hidden>
+<h2>直接保存带字幕的 MP4</h2>
+<p class="tip">使用电脑上的 Chrome / Edge，载入本地视频后选择保存位置。网页会把双语字幕和人物颜色烧进画面，完成后直接得到 MP4，无需安装 FFmpeg，也无需上传视频。</p>
+<small>最高 1080p / 30 帧，不放大低于该分辨率的片源。导出速度取决于电脑性能与视频格式，请保持页面打开并避免电脑休眠。工程 JSON 仍可继续编辑。</small>
+</section>
 <section id="localExportOptions" class="export-card">
 <h2>下载导出包，在电脑上生成 MP4</h2>
 <p class="tip">① 下载并解压 ZIP　② Mac 打开 export-mac.command，选择原视频　③ 等待生成 MP4。Windows / Linux 的运行方法也在包内。</p>

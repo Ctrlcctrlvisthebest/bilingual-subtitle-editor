@@ -7,7 +7,7 @@
     "build:offline": "node build-offline.mjs",
     "build:minitool": "node build-minitool.mjs",
     "test:minitool": "node minitool/test.mjs",
-    "test": "node --test test.cjs project-save-queue.test.cjs browser-project-store.test.cjs video-export.test.cjs backend/test/capacity.mjs && node collaboration.test.cjs && node collaboration-ui.test.cjs && node --test backend/test/integration.mjs",
+    "test": "node --test test.cjs project-save-queue.test.cjs browser-project-store.test.cjs video-export.test.cjs direct-video-export.test.cjs subtitle-renderer.test.cjs backend/test/capacity.mjs && node collaboration.test.cjs && node collaboration-ui.test.cjs && node --test backend/test/integration.mjs",
     "dev": "npm run build && wrangler dev",
     "types": "wrangler types",
     "check": "tsc --noEmit",
@@ -19,8 +19,11 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261008.1",
     "@types/node": "^26.6.4",
+    "esbuild": "^0.28.1",
     "typescript": "^7.0.2",
-    "wrangler": "^4.148.0",
-    "esbuild": "^0.28.1"
+    "wrangler": "^4.148.0"
+  },
+  "dependencies": {
+    "mediabunny": "1.61.3"
   }
 }
