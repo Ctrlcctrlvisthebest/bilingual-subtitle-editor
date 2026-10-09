@@ -1,0 +1,23 @@
+.row {
+  gap: 10px;
+}
+.row label {
+  gap: 8px;
+}
+.grid {
+  gap: 18px;
+}
+.playback-controls {
+  gap: 10px;
+}
+.playback-help {
+  gap: 8px;
+}
+.timing-row {
+  gap: 8px;
+}
+@media (max-width: 700px) {
+  .playback-controls {
+    gap: 8px;
+  }
+}
