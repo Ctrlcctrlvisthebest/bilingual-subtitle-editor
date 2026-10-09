@@ -21,7 +21,17 @@ async function localRuntime(t,{port=8857,signingKey='isolated-test-signing-key',
  const origin='http://127.0.0.1:'+port;let started=false;
  for(let n=0;n<100;n++){try{const r=await fetch(origin+'/api/health');if(r.ok){started=true;break;}}catch{}if(child.exitCode!==null)break;await delay(200);}
  assert(started,'Wrangler did not start:\n'+logs);
- const api=async(path,method='GET',data,token,expected=200,headers={})=>{const r=await fetch(origin+'/api/'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...headers},body:data===undefined?undefined:JSON.stringify(data)});const json=await r.json();assert.equal(r.status,expected,JSON.stringify(json));return json;};
+ const api=async(path,method='GET',data,token,expected=200,headers={})=>{
+  const r=await fetch(origin+'/api/'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...headers},body:data===undefined?undefined:JSON.stringify(data)});
+  const route=path.replace(/^groups\/[^/?]+/,'groups/:group').replace(/projects\/[^/?]+/,'projects/:project');
+  const content=await r.text();
+  let json;
+  try{json=JSON.parse(content);}catch(error){
+   throw Error('Invalid backend JSON: '+JSON.stringify({method,route,status:r.status,characters:content.length,bytes:Buffer.byteLength(content),declaredBytes:r.headers.get('content-length'),encoding:r.headers.get('content-encoding'),type:r.headers.get('content-type'),position:Number(error.message.match(/position (\d+)/)?.[1]),firstNul:content.indexOf('\0'),lastCharacter:content.charCodeAt(content.length-1)}));
+  }
+  assert.equal(r.status,expected,method+' '+route+': '+(json.error||'unexpected status'));
+  return json;
+ };
  return {api,origin};
 }
 
@@ -60,12 +70,25 @@ test('Cloudflare runtime: self-service groups, scoped credentials, invitation, c
  await api(path,'PATCH',{changes:[{id:'a',expected:0,row:project.rows[0]}],order:{expected:2,ids:['a','b']}},editor.token,409);
  const recovered=await api(path,'PATCH',{changes:[{id:'a',expected:3,row:project.rows[0]}],order:{expected:2,ids:['a','b']}},owner.token);assert.equal(recovered.project.rows.length,2);
  await api(g+'/presence','POST',{projectId:created.id,rowId:'b'},editor.token);const group=await api(g,'GET',undefined,owner.token);assert.equal(group.members.find(m=>m.id===editor.member.id).row_id,'b');assert(!JSON.stringify(group).includes(editor.token));
+ for (const invalid of [{projectId:9,rowId:'b'}, {projectId:created.id,rowId:null}, {projectId:'x'.repeat(151),rowId:'b'}, {projectId:created.id,rowId:'x'.repeat(151)}, {}]) {
+  await api(g+'/presence','POST',invalid,editor.token,400);
+ }
+ const afterInvalidPresence=await api(g,'GET',undefined,owner.token);
+ assert.equal(afterInvalidPresence.members.find(m=>m.id===editor.member.id).row_id,'b');
+ await api(g+'/presence','POST',{projectId:'',rowId:''},viewer.token);
  await api(g+'/members','PATCH',{id:owner.member.id,role:'removed'},owner.token,400);
  await api(g+'/members','PATCH',{id:editor.member.id,role:'removed'},owner.token);await api(g,'GET',undefined,editor.token,401);
  await api(g+'/invites','POST',{role:'owner',uses:1,days:7},owner.token,400);
  const waiting=await api(g+'/invites','POST',{role:'editor',uses:1,days:7},owner.token,201);await api(g+'/invites/reset','POST',{},owner.token);await api(g+'/join','POST',{name:'无效邀请',code:waiting.code},undefined,403);
  const large=structuredClone(project);large.title='四小时字幕容量检查';large.rows=Array.from({length:4200},(_,i)=>({...project.rows[0],id:'row-'+i,start:i*3,end:i*3+2,note:'参考转写 '.repeat(120)}));
- const long=await api(g+'/projects','POST',{project:large},owner.token,201);assert.equal(long.project.rows.length,4200);assert.equal((await api(g+'/projects/'+long.id,'GET',undefined,owner.token)).project.rows[4199].id,'row-4199');
+ const long=await api(g+'/projects','POST',{project:large},owner.token,201);
+ const loaded=await api(g+'/projects/'+long.id,'GET',undefined,owner.token);
+ for(const [label,snapshot] of [['created',long],['loaded',loaded]]){
+  assert.equal(snapshot.project.rows.length,4200);
+  for(let index=0;index<large.rows.length;index++){
+   assert(JSON.stringify(snapshot.project.rows[index])===JSON.stringify(large.rows[index]),label+' large fixture row '+index+' differs');
+  }
+ }
  const asset=await fetch(origin+'/');assert.equal(asset.status,200);assert((await asset.text()).includes('字幕组 · 多人在线校对'));
  console.log('后端实测通过：自助建组、旧成员备份、跨组凭证隔离、两个成员并发、冲突无覆盖、权限、邀请撤销、历史记录、4200 条工程。');
 });
