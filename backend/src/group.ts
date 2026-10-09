@@ -91,7 +91,10 @@ export class SubtitleGroup extends DurableObject<Env> {
         return {status:200, body:{groupName, member:object(m), members:members.map(object), projects}};
       }
       if (op === 'presence') {
-        this.ctx.storage.sql.exec('UPDATE members SET last_seen=?,project_id=?,row_id=? WHERE id=?', Date.now(), typeof input.projectId === 'string' ? input.projectId.slice(0,150) : '', typeof input.rowId === 'string' ? input.rowId.slice(0,150) : '', m.id);
+        if (typeof input.projectId !== 'string' || input.projectId.length > 150 || typeof input.rowId !== 'string' || input.rowId.length > 150) {
+          throw new Problem(400, '在线状态的工程或字幕编号格式无效');
+        }
+        this.ctx.storage.sql.exec('UPDATE members SET last_seen=?,project_id=?,row_id=? WHERE id=?', Date.now(), input.projectId, input.rowId, m.id);
         return {status:200, body:{ok:true}};
       }
       if (op === 'invite') {
