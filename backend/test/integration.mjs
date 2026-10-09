@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
+import {longProject,projectAtBytes} from './capacity-fixtures.mjs';
 
 async function localRuntime(t,{port=8857,signingKey='isolated-test-signing-key',rateLimit=true}={}) {
  const cwd=fileURLToPath(new URL('../../',import.meta.url)),dir=await mkdtemp(join(tmpdir(),'subtitle-collab-test-'));
@@ -80,17 +81,63 @@ test('Cloudflare runtime: self-service groups, scoped credentials, invitation, c
  await api(g+'/members','PATCH',{id:editor.member.id,role:'removed'},owner.token);await api(g,'GET',undefined,editor.token,401);
  await api(g+'/invites','POST',{role:'owner',uses:1,days:7},owner.token,400);
  const waiting=await api(g+'/invites','POST',{role:'editor',uses:1,days:7},owner.token,201);await api(g+'/invites/reset','POST',{},owner.token);await api(g+'/join','POST',{name:'无效邀请',code:waiting.code},undefined,403);
- const large=structuredClone(project);large.title='四小时字幕容量检查';large.rows=Array.from({length:4200},(_,i)=>({...project.rows[0],id:'row-'+i,start:i*3,end:i*3+2,note:'参考转写 '.repeat(120)}));
- const long=await api(g+'/projects','POST',{project:large},owner.token,201);
- const loaded=await api(g+'/projects/'+long.id,'GET',undefined,owner.token);
- for(const [label,snapshot] of [['created',long],['loaded',loaded]]){
-  assert.equal(snapshot.project.rows.length,4200);
-  for(let index=0;index<large.rows.length;index++){
-   assert(JSON.stringify(snapshot.project.rows[index])===JSON.stringify(large.rows[index]),label+' large fixture row '+index+' differs');
-  }
- }
  const asset=await fetch(origin+'/');assert.equal(asset.status,200);assert((await asset.text()).includes('字幕组 · 多人在线校对'));
- console.log('后端实测通过：自助建组、旧成员备份、跨组凭证隔离、两个成员并发、冲突无覆盖、权限、邀请撤销、历史记录、4200 条工程。');
+ console.log('后端实测通过：自助建组、旧成员备份、跨组凭证隔离、两个成员并发、冲突无覆盖、权限、邀请撤销、历史记录。');
+});
+
+test('Cloudflare runtime: long multilingual projects retain references and capacity failures are atomic', {timeout:120000}, async t=>{
+ const maxProjectBytes=12_000_000,maxRequestBytes=16_000_000;
+ const {api}=await localRuntime(t,{port:8861});
+ const owner=await api('groups','POST',{name:'容量验证组',memberName:'组主'},undefined,201),g='groups/'+owner.groupId;
+ const large=longProject(),serialized=JSON.stringify(large);
+ assert(serialized.length>8_000_000,'fixture must exceed the old character limit');
+ assert(Buffer.byteLength(serialized)>10_000_000,'fixture must exceed the old request byte limit');
+ assert(Buffer.byteLength(serialized)<maxProjectBytes);
+ const created=await api(g+'/projects','POST',{project:large},owner.token,201),path=g+'/projects/'+created.id;
+ assert.deepEqual(created.project.rows,large.rows);
+ assert.deepEqual((await api(path,'GET',undefined,owner.token)).project.rows,large.rows);
+ const edited={...large.rows[0],zh:'带上抗火药水，跟我一起走。',speaker:'Mapicc',note:large.rows[0].note+'\n听校已确认。'};
+ const saved=await api(path,'PATCH',{changes:[{id:edited.id,expected:1,row:edited}]},owner.token);
+ assert.deepEqual(saved.project.rows[0],edited);
+ assert.equal(saved.rowVersions[edited.id],2);
+ assert.equal(saved.project.rows[1].audioTranscript,large.rows[1].audioTranscript);
+ const reloaded=await api(path,'GET',undefined,owner.token);
+ assert.deepEqual(reloaded.project.rows[0],edited);
+ assert.deepEqual(reloaded.project.rows.slice(1),large.rows.slice(1));
+
+ // Shared IDs add bytes at creation; fill the remaining bytes only after assigning that ID.
+ const near=projectAtBytes(maxProjectBytes-256);
+ const nearCreated=await api(g+'/projects','POST',{project:near},owner.token,201),nearPath=g+'/projects/'+nearCreated.id;
+ const remaining=maxProjectBytes-Buffer.byteLength(JSON.stringify(nearCreated.project));
+ assert(remaining>0);
+ const atLimit={...nearCreated.project.rows[0],audioTranscript:nearCreated.project.rows[0].audioTranscript+'x'.repeat(remaining)};
+ const boundary=await api(nearPath,'PATCH',{changes:[{id:atLimit.id,expected:1,row:atLimit}]},owner.token);
+ assert.equal(Buffer.byteLength(JSON.stringify(boundary.project)),maxProjectBytes);
+ assert.deepEqual(boundary.project.rows[0],atLimit);
+ await api(nearPath,'PATCH',{changes:[
+  {id:atLimit.id,expected:2,row:{...atLimit,audioTranscript:atLimit.audioTranscript+'x'}},
+  {id:boundary.project.rows[1].id,expected:1,row:{...boundary.project.rows[1],zh:'此修改不应部分保存'}}
+ ]},owner.token,413);
+ const unchanged=await api(nearPath,'GET',undefined,owner.token);
+ assert.equal(unchanged.revision,boundary.revision);
+ assert.deepEqual(unchanged.rowVersions,boundary.rowVersions);
+ assert.deepEqual(unchanged.project.rows,boundary.project.rows);
+ // A generated shared ID must not push a locally valid project over the stored limit.
+ await api(g+'/projects','POST',{project:projectAtBytes(maxProjectBytes)},owner.token,413);
+ await api(g+'/projects','POST',{project:projectAtBytes(maxProjectBytes+1)},owner.token,413);
+ await api(g+'/projects','POST',{padding:'x'.repeat(maxRequestBytes)},owner.token,413);
+ assert.equal((await api(g,'GET',undefined,owner.token)).projects.length,2);
+ console.log('容量实测通过：7392 条多语字幕及听校参考完整往返、继续编辑、12 MB 边界保存、超限修改原子拒绝、16 MB 请求限制。');
+});
+
+test('Cloudflare runtime: explicitly selected local project preserves every field', {timeout:120000,skip:!process.env.SUBTITLE_CAPACITY_PROJECT_FILE}, async t=>{
+ const {api}=await localRuntime(t,{port:8862});
+ const project=JSON.parse(await readFile(process.env.SUBTITLE_CAPACITY_PROJECT_FILE,'utf8'));
+ const owner=await api('groups','POST',{name:'本地工程容量验证',memberName:'组主'},undefined,201),g='groups/'+owner.groupId;
+ const created=await api(g+'/projects','POST',{project},owner.token,201);
+ const expected={...project,editor_id:created.project.editor_id};
+ assert.deepEqual(created.project,expected);
+ assert.deepEqual((await api(g+'/projects/'+created.id,'GET',undefined,owner.token)).project,expected);
 });
 
 test('Cloudflare runtime: per-IP creation rate limit and missing configuration fail closed', {timeout:60000}, async t=>{

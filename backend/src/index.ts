@@ -1,5 +1,6 @@
 import {timingSafeEqual} from 'node:crypto';
 import {Problem, object, text, type Obj} from './model';
+import {MAX_REQUEST_BYTES} from './limits';
 export {SubtitleGroup} from './group';
 
 const encoder = new TextEncoder();
@@ -12,10 +13,10 @@ async function signature(id: string, secret: string): Promise<string> {
 function equal(a: string, b: string): boolean {const x=encoder.encode(a),y=encoder.encode(b);return x.length===y.length&&timingSafeEqual(x,y);}
 async function body(request: Request): Promise<Obj> {
   if (!request.headers.get('Content-Type')?.startsWith('application/json')) throw new Problem(415,'请使用 JSON 请求');
-  if (Number(request.headers.get('Content-Length') || 0)>10000000) throw new Problem(413,'请求超过 10 MB');
+  if (Number(request.headers.get('Content-Length') || 0)>MAX_REQUEST_BYTES) throw new Problem(413,'请求数据超过 16 MB');
   const reader=request.body?.getReader();if(!reader)throw new Problem(400,'缺少请求内容');
   const chunks:Uint8Array[]=[];let length=0;
-  try {while(true){const part=await reader.read();if(part.done)break;length+=part.value.length;if(length>10000000){await reader.cancel();throw new Problem(413,'请求超过 10 MB');}chunks.push(part.value);}} finally {reader.releaseLock();}
+  try {while(true){const part=await reader.read();if(part.done)break;length+=part.value.length;if(length>MAX_REQUEST_BYTES){await reader.cancel();throw new Problem(413,'请求数据超过 16 MB');}chunks.push(part.value);}} finally {reader.releaseLock();}
   const bytes=new Uint8Array(length);let pos=0;for(const c of chunks){bytes.set(c,pos);pos+=c.length;}
   try {return object(JSON.parse(new TextDecoder().decode(bytes)));} catch(e){if(e instanceof Problem)throw e;throw new Problem(400,'JSON 无法解析');}
 }

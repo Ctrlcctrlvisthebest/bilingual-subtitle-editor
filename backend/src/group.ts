@@ -1,5 +1,5 @@
 import {DurableObject} from 'cloudflare:workers';
-import {Problem, checkedMeta, checkedProject, checkedRow, integer, object, text, type Obj, type Result, type Role} from './model';
+import {Problem, checkedMeta, checkedProject, checkedProjectSize, checkedRow, integer, object, text, type Obj, type Result, type Role} from './model';
 
 type Member = {id: string; name: string; role: Role; active: number; last_seen: number; project_id: string; row_id: string};
 type StoredProject = {id: string; meta: string; meta_version: number; order_ids: string; order_version: number; revision: number; updated_at: number; updated_by: string};
@@ -121,6 +121,7 @@ export class SubtitleGroup extends DurableObject<Env> {
         if (this.ctx.storage.sql.exec<{n:number}>('SELECT COUNT(*) AS n FROM projects').one().n >= 50) throw new Problem(400,'一个字幕组最多 50 个工程');
         const p = checkedProject(input.project), id = crypto.randomUUID(), {rows,...meta} = p;
         meta.editor_id = 'shared-'+id;
+        checkedProjectSize(JSON.stringify(meta), rows.map(row => JSON.stringify(row)));
         this.ctx.storage.transactionSync(() => {
           this.ctx.storage.sql.exec('INSERT INTO projects VALUES(?,?,1,?,1,1,?,?)', id, JSON.stringify(meta), JSON.stringify(rows.map(r=>r.id)), Date.now(), m.name);
           for (const row of rows) this.ctx.storage.sql.exec('INSERT INTO rows VALUES(?,?,?,1)', id, row.id, JSON.stringify(row));
@@ -166,7 +167,8 @@ export class SubtitleGroup extends DurableObject<Env> {
       for (const c of changes) {if (c.row) resulting.set(c.id,JSON.stringify(c.row));else resulting.delete(c.id);}
       const ids = order ?? JSON.parse(p.order_ids) as string[];
       if (ids.length !== resulting.size || new Set(ids).size !== ids.length || ids.some(id=>!resulting.has(id))) throw new Problem(400,'增删字幕时必须同步修改顺序');
-      if (resulting.size > 20000 || [...resulting.values()].reduce((n,v)=>n+v.length,JSON.stringify(meta ?? JSON.parse(p.meta)).length)>8000000) throw new Problem(413,'共享工程超过容量限制');
+      if (resulting.size > 20000) throw new Problem(400,'工程最多包含 20,000 条字幕');
+      checkedProjectSize(meta ? JSON.stringify(meta) : p.meta, resulting.values());
       if (!changes.length && !meta && !order) return {status:200,body:this.snapshot(pid)};
       this.ctx.storage.transactionSync(() => {
         for (const c of changes) {
