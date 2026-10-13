@@ -36442,7 +36442,19 @@ The @mediabunny/mp3-encoder extension package provides support for encoding MP3.
     void editor2.ready.then(initialize);
   }
 
+  // web-analytics.js
+  function initWebAnalytics() {
+    const { origin, pathname } = window.location;
+    if (origin !== "https://ctrlcctrlvisthebest.github.io" || !(pathname === "/bilingual-subtitle-editor" || pathname.startsWith("/bilingual-subtitle-editor/"))) return;
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "https://static.cloudflareinsights.com/beacon.min.js";
+    script.setAttribute("data-cf-beacon", '{"token":"1ecf1746620a421eb5689ccc9b4cc255"}');
+    document.body.appendChild(script);
+  }
+
   // web-entry.js
+  initWebAnalytics();
   var exporter;
   var editor = createBrowserEditor({ isExportOpen: () => exporter.isOpen() });
   exporter = initVideoExport(editor, { exportMP4 });
