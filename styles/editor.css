@@ -131,7 +131,7 @@ kbd {
 .player video {
   display: block;
   width: 100%;
-  max-height: 360px;
+  height: auto;
   margin: 0 auto;
   background: #05090f;
   border-radius: 9px;

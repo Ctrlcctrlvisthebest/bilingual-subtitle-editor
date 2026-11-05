@@ -15,7 +15,6 @@ summary{font-weight:600}
 .primary:hover:enabled,#playPause:hover:enabled{background:#c62643;border-color:#c62643}
 .seek-step{background:#fff1f3;border-color:#f0c5cc;color:#a72d43}
 .player{background:#fff;border-color:#e0d9de;border-radius:16px;padding:18px}
-.player video{max-height:430px}
 #playbackClock{color:#5c454f}
 #seekFeedback,a{color:#b52f4b}
 kbd{background:#fbf4f5;border-color:#e8d6dc;color:#684c58}

@@ -7,7 +7,7 @@ input,textarea,select{background:#fff;color:#302d31;border-color:#d9d2d8;border-
 textarea{min-height:130px;line-height:1.6;padding:14px}p,.muted,small,.playback-help{color:#746970}
 details{background:#fff;border-color:#e3dbdf;border-radius:13px;padding:15px 18px}summary{font-weight:600;min-height:24px}
 .warning,#msg{color:#9a4c15}.primary,#playPause{background:#df3554;color:#fff;border-color:#df3554}.primary:hover:enabled,#playPause:hover:enabled{background:#c62643;border-color:#c62643}
-.seek-step{background:#fff1f3;border-color:#f0c5cc;color:#a72d43}.player{background:#fff;border-color:#e0d9de;border-radius:16px;padding:18px}.player video{max-height:430px}
+.seek-step{background:#fff1f3;border-color:#f0c5cc;color:#a72d43}.player{background:#fff;border-color:#e0d9de;border-radius:16px;padding:18px}
 #playbackClock{color:#5c454f}#seekFeedback,a{color:#b52f4b}kbd{background:#fbf4f5;border-color:#e8d6dc;color:#684c58}#screen{border-radius:14px;background:#25272e;border:1px solid #3c3e47;padding:12px}
 .timing-panel{background:#fff;border-color:#ded5dc;border-radius:16px;padding:18px}.timing-panel h2{color:#703f50}.editor-label{color:#78495a;font-size:14px;font-weight:600}
 .mini-header{margin-bottom:20px}.mini-kicker{display:flex;align-items:center;font-size:13px;letter-spacing:.04em;color:#856874}.mini-kicker>*{margin-right:10px}
