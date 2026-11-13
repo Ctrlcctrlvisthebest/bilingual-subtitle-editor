@@ -158,6 +158,32 @@ kbd {
   height: 100%;
   pointer-events: none;
 }
+.subtitle-language-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.subtitle-language-controls fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #405470;
+  border-radius: 9px;
+}
+.subtitle-language-controls legend {
+  color: #b6ddf3;
+  padding: 0 6px;
+  font-weight: 600;
+}
+.subtitle-height-slider {
+  width: 100%;
+  padding: 0;
+  accent-color: #91caff;
+}
+@media (max-width: 700px) {
+  .subtitle-language-controls {grid-template-columns: 1fr;}
+}
 .playback-controls {
   display: flex;
   flex-wrap: wrap;
@@ -210,6 +236,7 @@ kbd {
 #sub {
   display: inline-flex;
   flex-direction: column;
+  gap: 6px;
   padding: 10px 18px;
   border: 3px solid #455a64;
   border-radius: 4px;
@@ -693,35 +720,31 @@ kbd {
 </label>
 </div>
 <div class="row">
-<label>中文字号 <input id="zhSize" type="number" min="20" max="90" step="1" value="48">
-</label>
-<label>英文字号 <input id="enSize" type="number" min="20" max="90" step="1" value="42">
-</label>
 <label>描边粗细 <input id="outlineWidth" type="number" min="1" max="8" step="0.5" value="3">
 </label>
 <label>
 <input id="subtitleBold" type="checkbox" checked>粗体</label>
 </div>
-<div class="row" role="group" aria-label="字幕位置">
-<label>字幕位置 <select id="subtitleAlignment">
-<option value="7">顶部靠左</option>
-<option value="8">顶部居中</option>
-<option value="9">顶部靠右</option>
-<option value="4">中间靠左</option>
-<option value="5">画面正中</option>
-<option value="6">中间靠右</option>
-<option value="1">底部靠左</option>
-<option value="2" selected>底部居中</option>
-<option value="3">底部靠右</option>
-</select>
-</label>
-<label>左右边距 <input id="subtitleMarginX" type="number" min="0" max="800" step="5" value="80" aria-describedby="subtitlePositionHelp">
-</label>
-<label>上下边距 <input id="subtitleMarginY" type="number" min="0" max="900" step="5" value="60" aria-describedby="subtitlePositionHelp">
-</label>
-<button id="resetSubtitlePosition" type="button">恢复默认位置</button>
+<div class="subtitle-language-controls">
+<fieldset>
+<legend>中文字幕框</legend>
+<div class="row">
+<label>高度 <input id="zhBottom" aria-label="中文高度" type="number" min="0" max="960" step="5" value="140" aria-describedby="subtitlePositionHelp"></label>
+<label>字号 <input id="zhSize" aria-label="中文字号" type="number" min="20" max="90" step="1" value="48"></label>
 </div>
-<small id="subtitlePositionHelp">位置设置应用于整个工程。边距以 1080p 像素计；顶部或底部的上下边距越大，字幕越靠近画面中间。居中时相应边距不移动中心点。视频画面、ASS 和带字幕视频导出同步；SRT 不保存位置。</small>
+<input id="zhBottomSlider" class="subtitle-height-slider" aria-label="拖动中文高度" type="range" min="0" max="960" step="5" value="140">
+</fieldset>
+<fieldset>
+<legend>英文字幕框</legend>
+<div class="row">
+<label>高度 <input id="enBottom" aria-label="英文高度" type="number" min="0" max="960" step="5" value="60" aria-describedby="subtitlePositionHelp"></label>
+<label>字号 <input id="enSize" aria-label="英文字号" type="number" min="20" max="90" step="1" value="42"></label>
+</div>
+<input id="enBottomSlider" class="subtitle-height-slider" aria-label="拖动英文高度" type="range" min="0" max="960" step="5" value="60">
+</fieldset>
+</div>
+<div class="row"><button id="resetSubtitlePosition" type="button">恢复默认高度</button></div>
+<small id="subtitlePositionHelp">中文和英文可分别调节，互不影响。高度是距画面底部的距离，数值越大越靠上；可拖动滑杆或输入数值。高度、字号以 1080p 像素计，应用于整个工程，并同步预览、ASS 和视频导出。SRT 不保存高度与字号。</small>
 <small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。保存 JSON 保留样式；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small>
 </details>
 <section class="player" aria-label="听校播放器">
@@ -952,11 +975,32 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
   var clone = (value) => JSON.parse(JSON.stringify(value));
   var uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "p-" + Date.now() + "-" + Math.random().toString(36).slice(2);
   var DEFAULT_COLORS = { Unknown: "#455a64", Other: "#455a64" };
-  var DEFAULT_APPEARANCE = { mode: "outline", order: "zh-first", zhSize: 48, enSize: 42, outlineWidth: 3, font: "Arial", bold: true, alignment: 2, marginX: 80, marginY: 60 };
+  var DEFAULT_APPEARANCE = {
+    mode: "outline",
+    order: "zh-first",
+    zhSize: 48,
+    enSize: 42,
+    outlineWidth: 3,
+    font: "Arial",
+    bold: true,
+    zhBottom: 140,
+    enBottom: 60
+  };
   function normalizeAppearance(value) {
     const a = value && typeof value === "object" ? value : {};
-    const number = (field, min, max) => typeof a[field] === "number" && Number.isFinite(a[field]) ? Math.max(min, Math.min(max, a[field])) : DEFAULT_APPEARANCE[field];
-    return { mode: a.mode === "box" ? "box" : "outline", order: a.order === "en-first" ? "en-first" : "zh-first", zhSize: number("zhSize", 20, 90), enSize: number("enSize", 20, 90), outlineWidth: number("outlineWidth", 1, 8), font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial", bold: typeof a.bold === "boolean" ? a.bold : true, alignment: Math.round(number("alignment", 1, 9)), marginX: number("marginX", 0, 800), marginY: number("marginY", 0, 900) };
+    const number = (field, min, max, initial = DEFAULT_APPEARANCE[field]) => typeof a[field] === "number" && Number.isFinite(a[field]) ? Math.max(min, Math.min(max, a[field])) : initial;
+    const order = a.order === "en-first" ? "en-first" : "zh-first";
+    return {
+      mode: a.mode === "box" ? "box" : "outline",
+      order,
+      zhSize: number("zhSize", 20, 90),
+      enSize: number("enSize", 20, 90),
+      outlineWidth: number("outlineWidth", 1, 8),
+      font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial",
+      bold: typeof a.bold === "boolean" ? a.bold : true,
+      zhBottom: number("zhBottom", 0, 960, order === "zh-first" ? DEFAULT_APPEARANCE.zhBottom : DEFAULT_APPEARANCE.enBottom),
+      enBottom: number("enBottom", 0, 960, order === "zh-first" ? DEFAULT_APPEARANCE.enBottom : DEFAULT_APPEARANCE.zhBottom)
+    };
   }
   function normalizeProject(p) {
     if (!p || p.version !== 1 || !Array.isArray(p.rows) || p.title !== void 0 && typeof p.title !== "string" || p.editor_id !== void 0 && typeof p.editor_id !== "string") throw Error("工程格式无效");
@@ -983,13 +1027,34 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
     return Number.isFinite(r.start) && Number.isFinite(r.end) && r.start >= 0 && r.end > r.start;
   }
 
+  // subtitle-layout.js
+  function widthUnits(s) {
+    return [...s].reduce((n, c) => n + (/[\u2e80-\uffef]/.test(c) ? 1 : 0.52), 0);
+  }
+  function layoutSubtitleBoxes(rows, appearance) {
+    const result = [], languages = appearance.order === "zh-first" ? ["en", "zh"] : ["zh", "en"];
+    let offset = 0;
+    for (const row of rows.slice().reverse()) {
+      const boxes = [];
+      for (const language of languages) {
+        const text = row[language].replace(/[\r\n]+/g, " ").trim();
+        if (!text) continue;
+        const size = Math.min(appearance[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(text))));
+        boxes.push({ row, language, text, size, bottom: appearance[language + "Bottom"] + offset });
+      }
+      if (!boxes.length) continue;
+      result.push(...boxes);
+      const low = Math.min(...boxes.map((box2) => box2.bottom));
+      const high = Math.max(...boxes.map((box2) => box2.bottom + box2.size * 1.3));
+      offset += high - low + 20;
+    }
+    return result;
+  }
+
   // subtitle-formats.js
   function contrast(hex) {
     const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
     return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 155 ? "#101010" : "#ffffff";
-  }
-  function widthUnits(s) {
-    return [...s].reduce((n, c) => n + (/[\u2e80-\uffef]/.test(c) ? 1 : 0.52), 0);
   }
   function time(s, ass = false) {
     const unit = ass ? 100 : 1e3, v = Math.round(s * unit), h = Math.floor(v / (unit * 3600)), m = Math.floor(v / (unit * 60)) % 60, z = Math.floor(v / unit) % 60, f = v % unit;
@@ -1040,7 +1105,7 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
   }
   function parseASS(text, mode = "auto") {
     let section = "", styleFields = [], eventFields = ["Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text"], appearance = normalizeAppearance();
-    const styles = /* @__PURE__ */ Object.create(null), colors = Object.assign(/* @__PURE__ */ Object.create(null), DEFAULT_COLORS), parsed = [];
+    const styles = /* @__PURE__ */ Object.create(null), colors = Object.assign(/* @__PURE__ */ Object.create(null), DEFAULT_COLORS), parsed = [], bilingual = /* @__PURE__ */ new Map();
     for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
       if (line.startsWith("; BilingualEditorAppearance: ")) {
         appearance = normalizeAppearance(JSON.parse(line.slice("; BilingualEditorAppearance: ".length)));
@@ -1073,7 +1138,36 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
       if (!sourceText.trim()) continue;
       const speaker = (event.Name || event.Style || "Unknown").trim(), style = styles[event.Style];
       colors[speaker] = style ? assColor(style.OutlineColour || style.BackColour) : "#455a64";
-      parsed.push({ ...blankRow(parseStamp(event.Start), parseStamp(event.End)), ...splitLanguages(sourceText, mode), speaker, sourceText });
+      const start = parseStamp(event.Start), end = parseStamp(event.End);
+      const marker = /^BilingualEditor:(0|[1-9]\d*):(zh|en)$/.exec(event.Effect);
+      if (!marker) {
+        parsed.push({ ...blankRow(start, end), ...splitLanguages(sourceText, mode), speaker, sourceText });
+        continue;
+      }
+      const index = Number(marker[1]), language = marker[2];
+      let group = bilingual.get(index);
+      if (!group) {
+        group = { row: { ...blankRow(start, end), speaker }, ranges: { zh: [], en: [] } };
+        bilingual.set(index, group);
+      }
+      if (group.row.speaker !== speaker || group.row[language] && group.row[language] !== sourceText) throw Error("ASS 双语分段的说话者或文字不一致");
+      group.row[language] = sourceText;
+      group.row.start = Math.min(group.row.start, start);
+      group.row.end = Math.max(group.row.end, end);
+      group.ranges[language].push({ start, end });
+    }
+    for (const [, { row, ranges }] of [...bilingual].sort(([a], [b]) => a - b)) {
+      for (const language of ["zh", "en"]) {
+        if (!ranges[language].length) continue;
+        let end = row.start;
+        for (const segment of ranges[language].sort((a, b) => a.start - b.start)) {
+          if (segment.start !== end) throw Error("ASS 双语分段的时间不连续，请使用原 JSON 工程继续编辑");
+          end = segment.end;
+        }
+        if (end !== row.end) throw Error("ASS 双语分段的时间不一致，请使用原 JSON 工程继续编辑");
+      }
+      row.sourceText = (appearance.order === "zh-first" ? [row.zh, row.en] : [row.en, row.zh]).filter(Boolean).join("\n");
+      parsed.push(row);
     }
     if (!parsed.length) throw Error("未发现 ASS 文本字幕");
     return normalizeProject({ version: 1, rows: parsed, colors, appearance });
@@ -1099,17 +1193,41 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
       }
       styles.set(name, style);
       const c = hex.slice(1), bgr = c.slice(4, 6) + c.slice(2, 4) + c.slice(0, 2), foreground = outlined ? "&H00FFFFFF" : contrast(hex) === "#101010" ? "&H00101010" : "&H00FFFFFF";
-      header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},${a.alignment},${a.marginX},${a.marginX},${a.marginY},1
+      header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},2,80,80,60,1
 `;
     }
     header += "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
-    return header + rs.map((r) => {
-      const parts = [], start = Math.round(r.start * 100) / 100, end = Math.max(start + 0.01, Math.round(r.end * 100) / 100);
-      for (const language of a.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) if (r[language].trim()) {
-        const size = Math.min(a[language + "Size"], Math.floor(Math.min(1700, 1920 - 2 * a.marginX) / Math.max(1, widthUnits(r[language]))));
-        parts.push(`{\\fs${size}}${esc(r[language])}`);
+    const changes = [], sourceIndices = /* @__PURE__ */ new Map();
+    rs.forEach((row, index) => {
+      sourceIndices.set(row, index);
+      const start = Math.round(row.start * 100), end = Math.max(start + 1, Math.round(row.end * 100));
+      changes.push({ at: start, index, entering: true }, { at: end, index, entering: false });
+    });
+    changes.sort((a2, b) => a2.at - b.at);
+    const active = /* @__PURE__ */ new Set(), events = [], previous = /* @__PURE__ */ new Map();
+    for (let i = 0; i < changes.length; ) {
+      const start = changes[i].at;
+      while (i < changes.length && changes[i].at === start) {
+        const change = changes[i++];
+        if (change.entering) active.add(change.index);
+        else active.delete(change.index);
       }
-      return `Dialogue: 0,${time(start, true)},${time(end, true)},${styles.get(r.speaker) || "Unknown"},${r.speaker.replace(/[,\r\n]/g, " ")},0,0,0,,${parts.join("\\N")}`;
+      if (i === changes.length) break;
+      const end = changes[i].at;
+      const rows = [...active].sort((a2, b) => a2 - b).map((index) => rs[index]);
+      for (const box2 of layoutSubtitleBoxes(rows, a)) {
+        const index = sourceIndices.get(box2.row), key = index + ":" + box2.language, last2 = previous.get(key);
+        if (last2 && last2.end === start && last2.bottom === box2.bottom && last2.size === box2.size) last2.end = end;
+        else {
+          const event = { ...box2, index, start, end };
+          events.push(event);
+          previous.set(key, event);
+        }
+      }
+    }
+    return header + events.map(({ row, language, text, size, bottom, index, start, end }) => {
+      const y = Math.round((1080 - bottom) * 1e3) / 1e3;
+      return `Dialogue: 0,${time(start / 100, true)},${time(end / 100, true)},${styles.get(row.speaker) || "Unknown"},${row.speaker.replace(/[,\r\n]/g, " ")},0,0,0,BilingualEditor:${index}:${language},{\\an2\\pos(960,${y})\\fs${size}}${esc(text)}`;
     }).join("\n") + "\n";
   }
   function buildSRT(rs, project) {
@@ -1135,7 +1253,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
     }
     function drawAppearance() {
       const a = project.appearance;
-      for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", subtitleAlignment: "alignment", subtitleMarginX: "marginX", subtitleMarginY: "marginY" })) $2(id).value = String(a[field]);
+      for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", zhBottom: "zhBottom", enBottom: "enBottom", zhBottomSlider: "zhBottom", enBottomSlider: "enBottom" })) $2(id).value = String(a[field]);
       $2("subtitleBold").checked = a.bold;
       $2("outlineWidth").disabled = a.mode === "box";
     }
@@ -1145,7 +1263,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
       $2("zh").textContent = r.zh || "";
       $2("en").textContent = r.en || "";
       const a = project.appearance, color = project.colors[r.speaker] || "#455a64", outlined = a.mode === "outline";
-      $2("sub").style.background = outlined ? "transparent" : color;
+      $2("sub").style.background = "transparent";
       $2("sub").style.border = "none";
       $2("sub").style.color = outlined ? "#ffffff" : contrast(color);
       $2("sub").style.fontFamily = '"' + a.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -1154,6 +1272,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
       const scale = Math.min(1, available / 1720), stroke = a.outlineWidth * scale;
       for (const [language, size] of [["zh", a.zhSize], ["en", a.enSize]]) {
         const el = $2(language);
+        el.style.background = outlined ? "transparent" : color;
         el.style.fontSize = Math.min(size * scale, available / Math.max(1, widthUnits(r[language]))) + "px";
         el.style.display = r[language].trim() ? "block" : "none";
         el.style.order = language === (a.order === "zh-first" ? "zh" : "en") ? "0" : "1";
@@ -1759,26 +1878,44 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
     $2("projectTitle").addEventListener("change", () => {
       if (!$2("projectTitle").value.trim()) $2("projectTitle").value = project.title;
     });
-    function changeAppearance() {
-      const incoming = normalizeAppearance({ mode: $2("subtitleMode").value, order: $2("subtitleOrder").value, zhSize: Number($2("zhSize").value), enSize: Number($2("enSize").value), outlineWidth: Number($2("outlineWidth").value), font: $2("subtitleFont").value, bold: $2("subtitleBold").checked, alignment: Number($2("subtitleAlignment").value), marginX: Number($2("subtitleMarginX").value), marginY: Number($2("subtitleMarginY").value) });
+    function changeAppearance(coalesce = null) {
+      const zhBottom = Number($2("zhBottom").value), enBottom = Number($2("enBottom").value);
+      const order = zhBottom === enBottom ? $2("subtitleOrder").value : zhBottom > enBottom ? "zh-first" : "en-first";
+      const incoming = normalizeAppearance({ mode: $2("subtitleMode").value, order, zhSize: Number($2("zhSize").value), enSize: Number($2("enSize").value), outlineWidth: Number($2("outlineWidth").value), font: $2("subtitleFont").value, bold: $2("subtitleBold").checked, zhBottom, enBottom });
       if (JSON.stringify(incoming) === JSON.stringify(project.appearance)) {
         drawAppearance();
         return;
       }
-      remember({ kind: "restore", rows: [], appearance: clone(project.appearance), label: "字幕样式" });
+      if (!(coalesce && editGroup === coalesce && history.at(-1)?.coalesce === coalesce)) remember({ kind: "restore", rows: [], appearance: clone(project.appearance), label: "字幕样式", coalesce });
       project.appearance = incoming;
-      editGroup = null;
+      editGroup = coalesce;
       save();
       draw();
       notice("字幕样式与位置已更新，预览、ASS 和视频导出同步，可撤销。");
     }
-    for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY"]) $2(id).addEventListener("change", changeAppearance);
-    $2("resetSubtitlePosition").addEventListener("click", () => {
-      for (const [id, field] of [["subtitleAlignment", "alignment"], ["subtitleMarginX", "marginX"], ["subtitleMarginY", "marginY"]]) $2(id).value = String(DEFAULT_APPEARANCE[field]);
+    for (const id of ["subtitleMode", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "zhBottom", "enBottom"]) $2(id).addEventListener("change", () => changeAppearance());
+    $2("subtitleOrder").addEventListener("change", () => {
+      const high = Math.max(Number($2("zhBottom").value), Number($2("enBottom").value));
+      const low = Math.min(Number($2("zhBottom").value), Number($2("enBottom").value));
+      $2("zhBottom").value = String($2("subtitleOrder").value === "zh-first" ? high : low);
+      $2("enBottom").value = String($2("subtitleOrder").value === "zh-first" ? low : high);
       changeAppearance();
     });
-    for (const id of ["zhSize", "enSize", "outlineWidth", "subtitleMarginX", "subtitleMarginY"]) {
-      $2(id).addEventListener("blur", changeAppearance);
+    for (const language of ["zh", "en"]) {
+      $2(language + "BottomSlider").addEventListener("input", () => {
+        $2(language + "Bottom").value = $2(language + "BottomSlider").value;
+        changeAppearance("height:" + language);
+      });
+      $2(language + "BottomSlider").addEventListener("change", () => {
+        editGroup = null;
+      });
+    }
+    $2("resetSubtitlePosition").addEventListener("click", () => {
+      for (const id of ["zhBottom", "enBottom"]) $2(id).value = String(DEFAULT_APPEARANCE[id]);
+      changeAppearance();
+    });
+    for (const id of ["zhSize", "enSize", "outlineWidth", "zhBottom", "enBottom"]) {
+      $2(id).addEventListener("blur", () => changeAppearance());
       $2(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -2215,62 +2352,37 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
   function paintSubtitles(canvas, activeRows, appearance, colors) {
     const ctx = canvas.getContext("2d"), scale = canvas.height / 1080;
     ctx.save();
-    const column = (appearance.alignment - 1) % 3, row = Math.floor((appearance.alignment - 1) / 3);
-    ctx.textAlign = ["left", "center", "right"][column];
+    ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.lineJoin = "round";
-    const outline = appearance.mode === "outline", padding = (outline ? appearance.outlineWidth : 10) * scale;
-    const marginX = Math.min(Math.max(padding, appearance.marginX * scale), (canvas.width - 1) / 2);
-    const available = canvas.width - 2 * marginX, gap = 20 * scale;
-    const x = [marginX, canvas.width / 2, canvas.width - marginX][column];
-    const groups = [];
-    for (const r of activeRows) {
-      const color = colors[r.speaker] || "#455a64", lines = [];
-      for (const language of appearance.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) {
-        const text = r[language].replace(/[\r\n]+/g, " ").trim();
-        if (!text) continue;
-        let size = Math.min(appearance[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(text)))) * scale;
-        const font = (s) => (appearance.bold ? "700 " : "400 ") + s + 'px "' + appearance.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
+    const outline = appearance.mode === "outline", padding = 10 * scale;
+    const available = canvas.width - 160 * scale, x = canvas.width / 2;
+    const font = (size) => (appearance.bold ? "700 " : "400 ") + size + 'px "' + appearance.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
+    for (const box2 of layoutSubtitleBoxes(activeRows, appearance)) {
+      const color = colors[box2.row.speaker] || "#455a64";
+      let size = box2.size * scale;
+      ctx.font = font(size);
+      const measured = ctx.measureText(box2.text).width;
+      if (measured > available) {
+        size *= available / measured;
         ctx.font = font(size);
-        const measured = ctx.measureText(text).width;
-        if (measured > available) {
-          size *= available / measured;
-          ctx.font = font(size);
-        }
-        const metrics = ctx.measureText(text);
-        lines.push({ text, size, font: font(size), width: metrics.width, descent: metrics.actualBoundingBoxDescent ?? size * 0.2 });
       }
-      if (!lines.length) continue;
-      groups.push({ color, lines, height: lines.reduce((n, line) => n + line.size * 1.3, 0) });
-    }
-    const height = groups.reduce((total, group) => total + group.height, 0) + Math.max(0, groups.length - 1) * gap;
-    const marginY = appearance.marginY * scale;
-    const top = row === 2 ? marginY : row === 1 ? (canvas.height - height) / 2 : canvas.height - marginY - height;
-    let bottom = Math.max(padding, Math.min(top, canvas.height - padding - height)) + height;
-    for (const group of groups.reverse()) {
-      const { color, lines, height: height2 } = group;
+      const metrics = ctx.measureText(box2.text), bottom = canvas.height - box2.bottom * scale;
+      const descent = metrics.actualBoundingBoxDescent ?? size * 0.2;
+      ctx.shadowColor = outline ? "#0008" : "transparent";
+      ctx.shadowBlur = outline ? scale : 0;
+      ctx.shadowOffsetY = outline ? scale : 0;
       if (!outline) {
-        const width = Math.max(...lines.map((line) => line.width));
-        const left = column === 0 ? x : column === 1 ? x - width / 2 : x - width;
         ctx.fillStyle = color;
-        ctx.fillRect(left - padding, bottom - height2 - padding, width + 2 * padding, height2 + 2 * padding);
+        ctx.fillRect(x - metrics.width / 2 - padding, bottom - size * 1.3 - padding, metrics.width + 2 * padding, size * 1.3 + 2 * padding);
       }
-      let y = bottom;
-      for (const line of lines.reverse()) {
-        ctx.font = line.font;
-        ctx.shadowColor = outline ? "#0008" : "transparent";
-        ctx.shadowBlur = outline ? scale : 0;
-        ctx.shadowOffsetY = outline ? scale : 0;
-        if (outline) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = appearance.outlineWidth * 2 * scale;
-          ctx.strokeText(line.text, x, y - line.descent);
-        }
-        ctx.fillStyle = outline ? "#ffffff" : contrast(color);
-        ctx.fillText(line.text, x, y - line.descent);
-        y -= line.size * 1.3;
+      if (outline) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = appearance.outlineWidth * 2 * scale;
+        ctx.strokeText(box2.text, x, bottom - descent);
       }
-      bottom -= height2 + gap;
+      ctx.fillStyle = outline ? "#ffffff" : contrast(color);
+      ctx.fillText(box2.text, x, bottom - descent);
     }
     ctx.restore();
   }
@@ -35897,11 +36009,11 @@ The @mediabunny/mp3-encoder extension package provides support for encoding MP3.
     }
     function editControls() {
       const disabled = active() && (state.session.member.role === "viewer" || state.conflicts.length > 0);
-      for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset", "undo", "claimCue"]) {
+      for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "zhBottom", "enBottom", "zhBottomSlider", "enBottomSlider", "resetSubtitlePosition", "applyOffset", "undo", "claimCue"]) {
         const element = $2(id);
         if (disabled) element.disabled = true;
         else if (id === "outlineWidth") element.disabled = project().appearance.mode === "box";
-        else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset"].includes(id)) element.disabled = false;
+        else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "zhBottom", "enBottom", "zhBottomSlider", "enBottomSlider", "resetSubtitlePosition", "applyOffset"].includes(id)) element.disabled = false;
       }
       $2("cloudSaveNow").disabled = !active() || state.session.member.role === "viewer" || state.conflicts.length > 0;
       $2("cloudHistory").disabled = !active();

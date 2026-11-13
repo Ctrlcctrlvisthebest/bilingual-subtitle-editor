@@ -50,35 +50,31 @@ __COLLABORATION_BAR__
 </label>
 </div>
 <div class="row">
-<label>中文字号 <input id="zhSize" type="number" min="20" max="90" step="1" value="48">
-</label>
-<label>英文字号 <input id="enSize" type="number" min="20" max="90" step="1" value="42">
-</label>
 <label>描边粗细 <input id="outlineWidth" type="number" min="1" max="8" step="0.5" value="3">
 </label>
 <label>
 <input id="subtitleBold" type="checkbox" checked>粗体</label>
 </div>
-<div class="row" role="group" aria-label="字幕位置">
-<label>字幕位置 <select id="subtitleAlignment">
-<option value="7">顶部靠左</option>
-<option value="8">顶部居中</option>
-<option value="9">顶部靠右</option>
-<option value="4">中间靠左</option>
-<option value="5">画面正中</option>
-<option value="6">中间靠右</option>
-<option value="1">底部靠左</option>
-<option value="2" selected>底部居中</option>
-<option value="3">底部靠右</option>
-</select>
-</label>
-<label>左右边距 <input id="subtitleMarginX" type="number" min="0" max="800" step="5" value="80" aria-describedby="subtitlePositionHelp">
-</label>
-<label>上下边距 <input id="subtitleMarginY" type="number" min="0" max="900" step="5" value="60" aria-describedby="subtitlePositionHelp">
-</label>
-<button id="resetSubtitlePosition" type="button">恢复默认位置</button>
+<div class="subtitle-language-controls">
+<fieldset>
+<legend>中文字幕框</legend>
+<div class="row">
+<label>高度 <input id="zhBottom" aria-label="中文高度" type="number" min="0" max="960" step="5" value="140" aria-describedby="subtitlePositionHelp"></label>
+<label>字号 <input id="zhSize" aria-label="中文字号" type="number" min="20" max="90" step="1" value="48"></label>
 </div>
-<small id="subtitlePositionHelp">位置设置应用于整个工程。边距以 1080p 像素计；顶部或底部的上下边距越大，字幕越靠近画面中间。居中时相应边距不移动中心点。视频画面、ASS 和带字幕视频导出同步；SRT 不保存位置。</small>
+<input id="zhBottomSlider" class="subtitle-height-slider" aria-label="拖动中文高度" type="range" min="0" max="960" step="5" value="140">
+</fieldset>
+<fieldset>
+<legend>英文字幕框</legend>
+<div class="row">
+<label>高度 <input id="enBottom" aria-label="英文高度" type="number" min="0" max="960" step="5" value="60" aria-describedby="subtitlePositionHelp"></label>
+<label>字号 <input id="enSize" aria-label="英文字号" type="number" min="20" max="90" step="1" value="42"></label>
+</div>
+<input id="enBottomSlider" class="subtitle-height-slider" aria-label="拖动英文高度" type="range" min="0" max="960" step="5" value="60">
+</fieldset>
+</div>
+<div class="row"><button id="resetSubtitlePosition" type="button">恢复默认高度</button></div>
+<small id="subtitlePositionHelp">中文和英文可分别调节，互不影响。高度是距画面底部的距离，数值越大越靠上；可拖动滑杆或输入数值。高度、字号以 1080p 像素计，应用于整个工程，并同步预览、ASS 和视频导出。SRT 不保存高度与字号。</small>
 <small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。__SAVE_STYLE_NOTICE__；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small>
 </details>
 <section class="player" aria-label="听校播放器">

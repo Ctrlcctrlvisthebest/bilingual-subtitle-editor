@@ -1,10 +1,8 @@
 import { blankRow, normalizeProject, normalizeAppearance, DEFAULT_COLORS } from "./project.js";
+import {layoutSubtitleBoxes, widthUnits} from './subtitle-layout.js';
 function contrast(hex) {
   const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 155 ? "#101010" : "#ffffff";
-}
-function widthUnits(s) {
-  return [...s].reduce((n, c) => n + (/[\u2e80-\uffef]/.test(c) ? 1 : 0.52), 0);
 }
 function time(s, ass = false) {
   const unit = ass ? 100 : 1e3, v = Math.round(s * unit), h = Math.floor(v / (unit * 3600)), m = Math.floor(v / (unit * 60)) % 60, z = Math.floor(v / unit) % 60, f = v % unit;
@@ -55,7 +53,7 @@ function csvFields(text, fields) {
 }
 function parseASS(text, mode = "auto") {
   let section = "", styleFields = [], eventFields = ["Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text"], appearance = normalizeAppearance();
-  const styles = /* @__PURE__ */ Object.create(null), colors = Object.assign(/* @__PURE__ */ Object.create(null), DEFAULT_COLORS), parsed = [];
+  const styles = /* @__PURE__ */ Object.create(null), colors = Object.assign(/* @__PURE__ */ Object.create(null), DEFAULT_COLORS), parsed = [], bilingual = new Map();
   for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
     if (line.startsWith("; BilingualEditorAppearance: ")) {
       appearance = normalizeAppearance(JSON.parse(line.slice("; BilingualEditorAppearance: ".length)));
@@ -88,7 +86,36 @@ function parseASS(text, mode = "auto") {
     if (!sourceText.trim()) continue;
     const speaker = (event.Name || event.Style || "Unknown").trim(), style = styles[event.Style];
     colors[speaker] = style ? assColor(style.OutlineColour || style.BackColour) : "#455a64";
-    parsed.push({ ...blankRow(parseStamp(event.Start), parseStamp(event.End)), ...splitLanguages(sourceText, mode), speaker, sourceText });
+    const start = parseStamp(event.Start), end = parseStamp(event.End);
+    const marker = /^BilingualEditor:(0|[1-9]\d*):(zh|en)$/.exec(event.Effect);
+    if (!marker) {
+      parsed.push({ ...blankRow(start, end), ...splitLanguages(sourceText, mode), speaker, sourceText });
+      continue;
+    }
+    const index = Number(marker[1]), language = marker[2];
+    let group = bilingual.get(index);
+    if (!group) {
+      group = {row: {...blankRow(start, end), speaker}, ranges: {zh: [], en: []}};
+      bilingual.set(index, group);
+    }
+    if (group.row.speaker !== speaker || group.row[language] && group.row[language] !== sourceText) throw Error("ASS 双语分段的说话者或文字不一致");
+    group.row[language] = sourceText;
+    group.row.start = Math.min(group.row.start, start);
+    group.row.end = Math.max(group.row.end, end);
+    group.ranges[language].push({start, end});
+  }
+  for (const [, {row, ranges}] of [...bilingual].sort(([a], [b]) => a - b)) {
+    for (const language of ['zh', 'en']) {
+      if (!ranges[language].length) continue;
+      let end = row.start;
+      for (const segment of ranges[language].sort((a, b) => a.start - b.start)) {
+        if (segment.start !== end) throw Error("ASS 双语分段的时间不连续，请使用原 JSON 工程继续编辑");
+        end = segment.end;
+      }
+      if (end !== row.end) throw Error("ASS 双语分段的时间不一致，请使用原 JSON 工程继续编辑");
+    }
+    row.sourceText = (appearance.order === 'zh-first' ? [row.zh, row.en] : [row.en, row.zh]).filter(Boolean).join('\n');
+    parsed.push(row);
   }
   if (!parsed.length) throw Error("未发现 ASS 文本字幕");
   return normalizeProject({ version: 1, rows: parsed, colors, appearance });
@@ -114,18 +141,42 @@ function buildASS(rs, project) {
     }
     styles.set(name, style);
     const c = hex.slice(1), bgr = c.slice(4, 6) + c.slice(2, 4) + c.slice(0, 2), foreground = outlined ? "&H00FFFFFF" : contrast(hex) === "#101010" ? "&H00101010" : "&H00FFFFFF";
-    header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},${a.alignment},${a.marginX},${a.marginX},${a.marginY},1
+    header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},2,80,80,60,1
 `;
   }
   header += "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
-  return header + rs.map((r) => {
-    const parts = [], start = Math.round(r.start * 100) / 100, end = Math.max(start + 0.01, Math.round(r.end * 100) / 100);
-    for (const language of a.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) if (r[language].trim()) {
-      const size = Math.min(a[language + "Size"], Math.floor(Math.min(1700, 1920 - 2 * a.marginX) / Math.max(1, widthUnits(r[language]))));
-      parts.push(`{\\fs${size}}${esc(r[language])}`);
+  const changes = [], sourceIndices = new Map();
+  rs.forEach((row, index) => {
+    sourceIndices.set(row, index);
+    const start = Math.round(row.start * 100), end = Math.max(start + 1, Math.round(row.end * 100));
+    changes.push({at: start, index, entering: true}, {at: end, index, entering: false});
+  });
+  changes.sort((a, b) => a.at - b.at);
+  const active = new Set(), events = [], previous = new Map();
+  for (let i = 0; i < changes.length;) {
+    const start = changes[i].at;
+    while (i < changes.length && changes[i].at === start) {
+      const change = changes[i++];
+      if (change.entering) active.add(change.index);
+      else active.delete(change.index);
     }
-    return `Dialogue: 0,${time(start, true)},${time(end, true)},${styles.get(r.speaker) || "Unknown"},${r.speaker.replace(/[,\r\n]/g, " ")},0,0,0,,${parts.join("\\N")}`;
-  }).join("\n") + "\n";
+    if (i === changes.length) break;
+    const end = changes[i].at;
+    const rows = [...active].sort((a, b) => a - b).map(index => rs[index]);
+    for (const box of layoutSubtitleBoxes(rows, a)) {
+      const index = sourceIndices.get(box.row), key = index + ':' + box.language, last = previous.get(key);
+      if (last && last.end === start && last.bottom === box.bottom && last.size === box.size) last.end = end;
+      else {
+        const event = {...box, index, start, end};
+        events.push(event);
+        previous.set(key, event);
+      }
+    }
+  }
+  return header + events.map(({row, language, text, size, bottom, index, start, end}) => {
+    const y = Math.round((1080 - bottom) * 1000) / 1000;
+    return `Dialogue: 0,${time(start / 100, true)},${time(end / 100, true)},${styles.get(row.speaker) || "Unknown"},${row.speaker.replace(/[,\r\n]/g, " ")},0,0,0,BilingualEditor:${index}:${language},{\\an2\\pos(960,${y})\\fs${size}}${esc(text)}`;
+  }).join('\n') + '\n';
 }
 function buildSRT(rs, project) {
   return rs.map((r, i) => `${i + 1}

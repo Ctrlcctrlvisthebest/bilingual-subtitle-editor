@@ -160,11 +160,11 @@ function initCollaboration(editor) {
   }
   function editControls() {
     const disabled = active() && (state.session.member.role === "viewer" || state.conflicts.length > 0);
-    for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset", "undo", "claimCue"]) {
+    for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "zhBottom", "enBottom", "zhBottomSlider", "enBottomSlider", "resetSubtitlePosition", "applyOffset", "undo", "claimCue"]) {
       const element = $(id);
       if (disabled) element.disabled = true;
       else if (id === "outlineWidth") element.disabled = project().appearance.mode === "box";
-      else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset"].includes(id)) element.disabled = false;
+      else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "zhBottom", "enBottom", "zhBottomSlider", "enBottomSlider", "resetSubtitlePosition", "applyOffset"].includes(id)) element.disabled = false;
     }
     $("cloudSaveNow").disabled = !active() || state.session.member.role === "viewer" || state.conflicts.length > 0;
     $("cloudHistory").disabled = !active();

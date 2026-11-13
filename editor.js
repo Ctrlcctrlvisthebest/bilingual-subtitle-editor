@@ -15,7 +15,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
   }
   function drawAppearance() {
     const a = project.appearance;
-    for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", subtitleAlignment: "alignment", subtitleMarginX: "marginX", subtitleMarginY: "marginY" })) $(id).value = String(a[field]);
+    for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", zhBottom: "zhBottom", enBottom: "enBottom", zhBottomSlider: "zhBottom", enBottomSlider: "enBottom" })) $(id).value = String(a[field]);
     $("subtitleBold").checked = a.bold;
     $("outlineWidth").disabled = a.mode === "box";
   }
@@ -25,7 +25,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
     $("zh").textContent = r.zh || "";
     $("en").textContent = r.en || "";
     const a = project.appearance, color = project.colors[r.speaker] || "#455a64", outlined = a.mode === "outline";
-    $("sub").style.background = outlined ? "transparent" : color;
+    $("sub").style.background = "transparent";
     $("sub").style.border = "none";
     $("sub").style.color = outlined ? "#ffffff" : contrast(color);
     $("sub").style.fontFamily = '"' + a.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -34,6 +34,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
     const scale = Math.min(1, available / 1720), stroke = a.outlineWidth * scale;
     for (const [language, size] of [["zh", a.zhSize], ["en", a.enSize]]) {
       const el = $(language);
+      el.style.background = outlined ? "transparent" : color;
       el.style.fontSize = Math.min(size * scale, available / Math.max(1, widthUnits(r[language]))) + "px";
       el.style.display = r[language].trim() ? "block" : "none";
       el.style.order = language === (a.order === "zh-first" ? "zh" : "en") ? "0" : "1";
@@ -639,26 +640,42 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
   $("projectTitle").addEventListener("change", () => {
     if (!$("projectTitle").value.trim()) $("projectTitle").value = project.title;
   });
-  function changeAppearance() {
-    const incoming = normalizeAppearance({ mode: $("subtitleMode").value, order: $("subtitleOrder").value, zhSize: Number($("zhSize").value), enSize: Number($("enSize").value), outlineWidth: Number($("outlineWidth").value), font: $("subtitleFont").value, bold: $("subtitleBold").checked, alignment: Number($("subtitleAlignment").value), marginX: Number($("subtitleMarginX").value), marginY: Number($("subtitleMarginY").value) });
+  function changeAppearance(coalesce = null) {
+    const zhBottom = Number($("zhBottom").value), enBottom = Number($("enBottom").value);
+    const order = zhBottom === enBottom ? $("subtitleOrder").value : zhBottom > enBottom ? "zh-first" : "en-first";
+    const incoming = normalizeAppearance({ mode: $("subtitleMode").value, order, zhSize: Number($("zhSize").value), enSize: Number($("enSize").value), outlineWidth: Number($("outlineWidth").value), font: $("subtitleFont").value, bold: $("subtitleBold").checked, zhBottom, enBottom });
     if (JSON.stringify(incoming) === JSON.stringify(project.appearance)) {
       drawAppearance();
       return;
     }
-    remember({ kind: "restore", rows: [], appearance: clone(project.appearance), label: "字幕样式" });
+    if (!(coalesce && editGroup === coalesce && history.at(-1)?.coalesce === coalesce)) remember({ kind: "restore", rows: [], appearance: clone(project.appearance), label: "字幕样式", coalesce });
     project.appearance = incoming;
-    editGroup = null;
+    editGroup = coalesce;
     save();
     draw();
     notice("字幕样式与位置已更新，预览、ASS 和视频导出同步，可撤销。");
   }
-  for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY"]) $(id).addEventListener("change", changeAppearance);
-  $("resetSubtitlePosition").addEventListener("click", () => {
-    for (const [id, field] of [["subtitleAlignment", "alignment"], ["subtitleMarginX", "marginX"], ["subtitleMarginY", "marginY"]]) $(id).value = String(DEFAULT_APPEARANCE[field]);
+  for (const id of ["subtitleMode", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "zhBottom", "enBottom"]) $(id).addEventListener("change", () => changeAppearance());
+  $("subtitleOrder").addEventListener("change", () => {
+    const high = Math.max(Number($("zhBottom").value), Number($("enBottom").value));
+    const low = Math.min(Number($("zhBottom").value), Number($("enBottom").value));
+    $("zhBottom").value = String($("subtitleOrder").value === "zh-first" ? high : low);
+    $("enBottom").value = String($("subtitleOrder").value === "zh-first" ? low : high);
     changeAppearance();
   });
-  for (const id of ["zhSize", "enSize", "outlineWidth", "subtitleMarginX", "subtitleMarginY"]) {
-    $(id).addEventListener("blur", changeAppearance);
+  for (const language of ["zh", "en"]) {
+    $(language + "BottomSlider").addEventListener("input", () => {
+      $(language + "Bottom").value = $(language + "BottomSlider").value;
+      changeAppearance("height:" + language);
+    });
+    $(language + "BottomSlider").addEventListener("change", () => {editGroup = null;});
+  }
+  $("resetSubtitlePosition").addEventListener("click", () => {
+    for (const id of ["zhBottom", "enBottom"]) $(id).value = String(DEFAULT_APPEARANCE[id]);
+    changeAppearance();
+  });
+  for (const id of ["zhSize", "enSize", "outlineWidth", "zhBottom", "enBottom"]) {
+    $(id).addEventListener("blur", () => changeAppearance());
     $(id).addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
