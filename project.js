@@ -1,11 +1,11 @@
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "p-" + Date.now() + "-" + Math.random().toString(36).slice(2);
 const DEFAULT_COLORS = { Unknown: "#455a64", Other: "#455a64" };
-const DEFAULT_APPEARANCE = { mode: "outline", order: "zh-first", zhSize: 48, enSize: 42, outlineWidth: 3, font: "Arial", bold: true };
+const DEFAULT_APPEARANCE = { mode: "outline", order: "zh-first", zhSize: 48, enSize: 42, outlineWidth: 3, font: "Arial", bold: true, alignment: 2, marginX: 80, marginY: 60 };
 function normalizeAppearance(value) {
   const a = value && typeof value === "object" ? value : {};
   const number = (field, min, max) => typeof a[field] === "number" && Number.isFinite(a[field]) ? Math.max(min, Math.min(max, a[field])) : DEFAULT_APPEARANCE[field];
-  return { mode: a.mode === "box" ? "box" : "outline", order: a.order === "en-first" ? "en-first" : "zh-first", zhSize: number("zhSize", 20, 90), enSize: number("enSize", 20, 90), outlineWidth: number("outlineWidth", 1, 8), font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial", bold: typeof a.bold === "boolean" ? a.bold : true };
+  return { mode: a.mode === "box" ? "box" : "outline", order: a.order === "en-first" ? "en-first" : "zh-first", zhSize: number("zhSize", 20, 90), enSize: number("enSize", 20, 90), outlineWidth: number("outlineWidth", 1, 8), font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial", bold: typeof a.bold === "boolean" ? a.bold : true, alignment: Math.round(number("alignment", 1, 9)), marginX: number("marginX", 0, 800), marginY: number("marginY", 0, 900) };
 }
 function normalizeProject(p) {
   if (!p || p.version !== 1 || !Array.isArray(p.rows) || p.title !== void 0 && typeof p.title !== "string" || p.editor_id !== void 0 && typeof p.editor_id !== "string") throw Error("工程格式无效");

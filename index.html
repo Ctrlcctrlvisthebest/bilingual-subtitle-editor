@@ -145,6 +145,19 @@ kbd {
   background: #05090f;
   border-radius: 9px;
 }
+.subtitle-preview-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #05090f;
+}
+.subtitle-preview-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 .playback-controls {
   display: flex;
   flex-wrap: wrap;
@@ -660,7 +673,7 @@ kbd {
 <small>人物颜色用于文字描边；选择色框模式时用作底色。ASS 导出保留人物颜色。</small>
 </details>
 <details>
-<summary>字幕样式 · 白字 / 人物颜色描边</summary>
+<summary>字幕样式与位置 · 白字 / 人物颜色描边</summary>
 <div class="row">
 <label>样式 <select id="subtitleMode">
 <option value="outline">白字＋人物颜色描边</option>
@@ -689,13 +702,35 @@ kbd {
 <label>
 <input id="subtitleBold" type="checkbox" checked>粗体</label>
 </div>
+<div class="row" role="group" aria-label="字幕位置">
+<label>字幕位置 <select id="subtitleAlignment">
+<option value="7">顶部靠左</option>
+<option value="8">顶部居中</option>
+<option value="9">顶部靠右</option>
+<option value="4">中间靠左</option>
+<option value="5">画面正中</option>
+<option value="6">中间靠右</option>
+<option value="1">底部靠左</option>
+<option value="2" selected>底部居中</option>
+<option value="3">底部靠右</option>
+</select>
+</label>
+<label>左右边距 <input id="subtitleMarginX" type="number" min="0" max="800" step="5" value="80" aria-describedby="subtitlePositionHelp">
+</label>
+<label>上下边距 <input id="subtitleMarginY" type="number" min="0" max="900" step="5" value="60" aria-describedby="subtitlePositionHelp">
+</label>
+<button id="resetSubtitlePosition" type="button">恢复默认位置</button>
+</div>
+<small id="subtitlePositionHelp">位置设置应用于整个工程。边距以 1080p 像素计；顶部或底部的上下边距越大，字幕越靠近画面中间。居中时相应边距不移动中心点。视频画面、ASS 和带字幕视频导出同步；SRT 不保存位置。</small>
 <small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。保存 JSON 保留样式；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small>
 </details>
 <section class="player" aria-label="听校播放器">
 <small id="mediaName">
 </small>
-<video id="video" controls preload="metadata" >
-</video>
+<div id="videoStage">
+<video id="video" controls preload="metadata" ></video>
+<canvas id="subtitlePreview" hidden aria-label="字幕位置画面预览"></canvas>
+</div>
 <div class="playback-controls" role="group" aria-label="播放控制">
 <button id="back5" class="seek-step" type="button" disabled title="后退 5 秒（←）">← 后退 5 秒</button>
 <button id="playPause" type="button" disabled aria-label="播放" title="播放 / 暂停（空格）">▶ 播放</button>
@@ -917,11 +952,11 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
   var clone = (value) => JSON.parse(JSON.stringify(value));
   var uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "p-" + Date.now() + "-" + Math.random().toString(36).slice(2);
   var DEFAULT_COLORS = { Unknown: "#455a64", Other: "#455a64" };
-  var DEFAULT_APPEARANCE = { mode: "outline", order: "zh-first", zhSize: 48, enSize: 42, outlineWidth: 3, font: "Arial", bold: true };
+  var DEFAULT_APPEARANCE = { mode: "outline", order: "zh-first", zhSize: 48, enSize: 42, outlineWidth: 3, font: "Arial", bold: true, alignment: 2, marginX: 80, marginY: 60 };
   function normalizeAppearance(value) {
     const a = value && typeof value === "object" ? value : {};
     const number = (field, min, max) => typeof a[field] === "number" && Number.isFinite(a[field]) ? Math.max(min, Math.min(max, a[field])) : DEFAULT_APPEARANCE[field];
-    return { mode: a.mode === "box" ? "box" : "outline", order: a.order === "en-first" ? "en-first" : "zh-first", zhSize: number("zhSize", 20, 90), enSize: number("enSize", 20, 90), outlineWidth: number("outlineWidth", 1, 8), font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial", bold: typeof a.bold === "boolean" ? a.bold : true };
+    return { mode: a.mode === "box" ? "box" : "outline", order: a.order === "en-first" ? "en-first" : "zh-first", zhSize: number("zhSize", 20, 90), enSize: number("enSize", 20, 90), outlineWidth: number("outlineWidth", 1, 8), font: ["Arial", "Microsoft YaHei", "Noto Sans CJK SC"].includes(a.font) ? a.font : "Arial", bold: typeof a.bold === "boolean" ? a.bold : true, alignment: Math.round(number("alignment", 1, 9)), marginX: number("marginX", 0, 800), marginY: number("marginY", 0, 900) };
   }
   function normalizeProject(p) {
     if (!p || p.version !== 1 || !Array.isArray(p.rows) || p.title !== void 0 && typeof p.title !== "string" || p.editor_id !== void 0 && typeof p.editor_id !== "string") throw Error("工程格式无效");
@@ -1050,7 +1085,7 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
     return s.replace(/\\/g, "＼").replace(/[{}]/g, "").replace(/[\r\n]+/g, " ");
   }
   function buildASS(rs, project) {
-    const a = project.appearance, outlined = a.mode === "outline";
+    const a = normalizeAppearance(project.appearance), outlined = a.mode === "outline";
     let header = "[Script Info]\nTitle: Bilingual subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\nWrapStyle: 2\n; BilingualEditorAppearance: " + JSON.stringify(a) + "\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n";
     const styles = /* @__PURE__ */ new Map(), reserved = new Set(Object.keys(project.colors));
     let n = 0;
@@ -1064,14 +1099,14 @@ Corresponding source: https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.3.
       }
       styles.set(name, style);
       const c = hex.slice(1), bgr = c.slice(4, 6) + c.slice(2, 4) + c.slice(0, 2), foreground = outlined ? "&H00FFFFFF" : contrast(hex) === "#101010" ? "&H00101010" : "&H00FFFFFF";
-      header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},2,80,80,60,1
+      header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},${a.alignment},${a.marginX},${a.marginX},${a.marginY},1
 `;
     }
     header += "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
     return header + rs.map((r) => {
       const parts = [], start = Math.round(r.start * 100) / 100, end = Math.max(start + 0.01, Math.round(r.end * 100) / 100);
       for (const language of a.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) if (r[language].trim()) {
-        const size = Math.min(a[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(r[language]))));
+        const size = Math.min(a[language + "Size"], Math.floor(Math.min(1700, 1920 - 2 * a.marginX) / Math.max(1, widthUnits(r[language]))));
         parts.push(`{\\fs${size}}${esc(r[language])}`);
       }
       return `Dialogue: 0,${time(start, true)},${time(end, true)},${styles.get(r.speaker) || "Unknown"},${r.speaker.replace(/[,\r\n]/g, " ")},0,0,0,,${parts.join("\\N")}`;
@@ -1100,7 +1135,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
     }
     function drawAppearance() {
       const a = project.appearance;
-      for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font" })) $2(id).value = String(a[field]);
+      for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", subtitleAlignment: "alignment", subtitleMarginX: "marginX", subtitleMarginY: "marginY" })) $2(id).value = String(a[field]);
       $2("subtitleBold").checked = a.bold;
       $2("outlineWidth").disabled = a.mode === "box";
     }
@@ -1125,6 +1160,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
         el.style.webkitTextStroke = outlined ? 2 * stroke + "px " + color : "0px";
         el.style.textShadow = outlined ? "0 " + scale + "px " + scale + "px #000000" : "none";
       }
+      if (callbacks.onPreview) callbacks.onPreview(r);
     }
     const rowControls = ["prev", "next", "seek", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "listenStart", "listenEnd", "split", "merge", "delete", "start", "end", "speaker", "status", "zhEdit", "enEdit", "note"];
     function draw() {
@@ -1146,7 +1182,11 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
         preview(r);
         $2("speakerName").value = r.speaker;
         $2("speakerColor").value = project.colors[r.speaker] || "#455a64";
-      } else $2("sub").style.visibility = "hidden";
+      } else {
+        lastPreview = null;
+        $2("sub").style.visibility = "hidden";
+        if (callbacks.onPreview) callbacks.onPreview(null);
+      }
       drawAppearance();
       timingHint();
       offsetPreview();
@@ -1318,7 +1358,14 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
         if (!playbackRow || t < playbackRow.start || t >= playbackRow.end) playbackRow = project.rows.find((row) => row.start <= t && row.end > t);
         const r = playbackRow;
         $2("sub").style.visibility = r ? "visible" : "hidden";
-        if (r && r !== lastPreview) preview(r);
+        if (r !== lastPreview) {
+          if (r) preview(r);
+          else {
+            lastPreview = null;
+            if (callbacks.onPreview) callbacks.onPreview(null);
+          }
+        }
+        if (callbacks.onPlayback) callbacks.onPlayback(t);
       }
       $2("playbackClock").textContent = playbackTime(player.currentTime) + " / " + playbackTime(player.duration);
     }
@@ -1713,7 +1760,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
       if (!$2("projectTitle").value.trim()) $2("projectTitle").value = project.title;
     });
     function changeAppearance() {
-      const incoming = normalizeAppearance({ mode: $2("subtitleMode").value, order: $2("subtitleOrder").value, zhSize: Number($2("zhSize").value), enSize: Number($2("enSize").value), outlineWidth: Number($2("outlineWidth").value), font: $2("subtitleFont").value, bold: $2("subtitleBold").checked });
+      const incoming = normalizeAppearance({ mode: $2("subtitleMode").value, order: $2("subtitleOrder").value, zhSize: Number($2("zhSize").value), enSize: Number($2("enSize").value), outlineWidth: Number($2("outlineWidth").value), font: $2("subtitleFont").value, bold: $2("subtitleBold").checked, alignment: Number($2("subtitleAlignment").value), marginX: Number($2("subtitleMarginX").value), marginY: Number($2("subtitleMarginY").value) });
       if (JSON.stringify(incoming) === JSON.stringify(project.appearance)) {
         drawAppearance();
         return;
@@ -1723,10 +1770,14 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
       editGroup = null;
       save();
       draw();
-      notice("字幕样式已更新，预览和 ASS 导出同步；文字与时间保持不变，可撤销。");
+      notice("字幕样式与位置已更新，预览、ASS 和视频导出同步，可撤销。");
     }
-    for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold"]) $2(id).addEventListener("change", changeAppearance);
-    for (const id of ["zhSize", "enSize", "outlineWidth"]) {
+    for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY"]) $2(id).addEventListener("change", changeAppearance);
+    $2("resetSubtitlePosition").addEventListener("click", () => {
+      for (const [id, field] of [["subtitleAlignment", "alignment"], ["subtitleMarginX", "marginX"], ["subtitleMarginY", "marginY"]]) $2(id).value = String(DEFAULT_APPEARANCE[field]);
+      changeAppearance();
+    });
+    for (const id of ["zhSize", "enSize", "outlineWidth", "subtitleMarginX", "subtitleMarginY"]) {
       $2(id).addEventListener("blur", changeAppearance);
       $2(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -1858,7 +1909,7 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
       }
     })();
     return { ready, player, getProject: () => project, getMediaFile: () => mediaSources.get(project.editor_id)?.handle.file, getIndex: () => idx, notice, activateProject, applyProject, replaceRows, save, flushSave: () => store.flush(), redraw: draw, setCallbacks(value) {
-      callbacks = value;
+      callbacks = { ...callbacks, ...value };
     }, go, pause, stopLoop, releaseMedia, commitTimes, importFile, exportRows, download: output };
   }
 
@@ -2164,19 +2215,24 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
   function paintSubtitles(canvas, activeRows, appearance, colors) {
     const ctx = canvas.getContext("2d"), scale = canvas.height / 1080;
     ctx.save();
-    ctx.textAlign = "center";
+    const column = (appearance.alignment - 1) % 3, row = Math.floor((appearance.alignment - 1) / 3);
+    ctx.textAlign = ["left", "center", "right"][column];
     ctx.textBaseline = "alphabetic";
     ctx.lineJoin = "round";
-    let bottom = canvas.height - 60 * scale;
-    for (const r of activeRows.slice().reverse()) {
-      const color = colors[r.speaker] || "#455a64", outline = appearance.mode === "outline", lines = [];
+    const outline = appearance.mode === "outline", padding = (outline ? appearance.outlineWidth : 10) * scale;
+    const marginX = Math.min(Math.max(padding, appearance.marginX * scale), (canvas.width - 1) / 2);
+    const available = canvas.width - 2 * marginX, gap = 20 * scale;
+    const x = [marginX, canvas.width / 2, canvas.width - marginX][column];
+    const groups = [];
+    for (const r of activeRows) {
+      const color = colors[r.speaker] || "#455a64", lines = [];
       for (const language of appearance.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) {
         const text = r[language].replace(/[\r\n]+/g, " ").trim();
         if (!text) continue;
         let size = Math.min(appearance[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(text)))) * scale;
         const font = (s) => (appearance.bold ? "700 " : "400 ") + s + 'px "' + appearance.font + '", "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.font = font(size);
-        const measured = ctx.measureText(text).width, available = canvas.width - 160 * scale;
+        const measured = ctx.measureText(text).width;
         if (measured > available) {
           size *= available / measured;
           ctx.font = font(size);
@@ -2185,11 +2241,19 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
         lines.push({ text, size, font: font(size), width: metrics.width, descent: metrics.actualBoundingBoxDescent ?? size * 0.2 });
       }
       if (!lines.length) continue;
-      const height = lines.reduce((n, line) => n + line.size * 1.3, 0), padding = 10 * scale;
+      groups.push({ color, lines, height: lines.reduce((n, line) => n + line.size * 1.3, 0) });
+    }
+    const height = groups.reduce((total, group) => total + group.height, 0) + Math.max(0, groups.length - 1) * gap;
+    const marginY = appearance.marginY * scale;
+    const top = row === 2 ? marginY : row === 1 ? (canvas.height - height) / 2 : canvas.height - marginY - height;
+    let bottom = Math.max(padding, Math.min(top, canvas.height - padding - height)) + height;
+    for (const group of groups.reverse()) {
+      const { color, lines, height: height2 } = group;
       if (!outline) {
         const width = Math.max(...lines.map((line) => line.width));
+        const left = column === 0 ? x : column === 1 ? x - width / 2 : x - width;
         ctx.fillStyle = color;
-        ctx.fillRect((canvas.width - width) / 2 - padding, bottom - height - padding, width + 2 * padding, height + 2 * padding);
+        ctx.fillRect(left - padding, bottom - height2 - padding, width + 2 * padding, height2 + 2 * padding);
       }
       let y = bottom;
       for (const line of lines.reverse()) {
@@ -2200,13 +2264,13 @@ ${(project.appearance.order === "zh-first" ? [r.zh, r.en] : [r.en, r.zh]).filter
         if (outline) {
           ctx.strokeStyle = color;
           ctx.lineWidth = appearance.outlineWidth * 2 * scale;
-          ctx.strokeText(line.text, canvas.width / 2, y - line.descent);
+          ctx.strokeText(line.text, x, y - line.descent);
         }
         ctx.fillStyle = outline ? "#ffffff" : contrast(color);
-        ctx.fillText(line.text, canvas.width / 2, y - line.descent);
+        ctx.fillText(line.text, x, y - line.descent);
         y -= line.size * 1.3;
       }
-      bottom -= height + 20 * scale;
+      bottom -= height2 + gap;
     }
     ctx.restore();
   }
@@ -35833,11 +35897,11 @@ The @mediabunny/mp3-encoder extension package provides support for encoding MP3.
     }
     function editControls() {
       const disabled = active() && (state.session.member.role === "viewer" || state.conflicts.length > 0);
-      for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "applyOffset", "undo", "claimCue"]) {
+      for (const id of ["start", "end", "speaker", "status", "zhEdit", "enEdit", "note", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "split", "merge", "delete", "add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset", "undo", "claimCue"]) {
         const element = $2(id);
         if (disabled) element.disabled = true;
         else if (id === "outlineWidth") element.disabled = project().appearance.mode === "box";
-        else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "applyOffset"].includes(id)) element.disabled = false;
+        else if (["add", "projectTitle", "addSpeaker", "renameSpeaker", "subtitleMode", "subtitleOrder", "zhSize", "enSize", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY", "resetSubtitlePosition", "applyOffset"].includes(id)) element.disabled = false;
       }
       $2("cloudSaveNow").disabled = !active() || state.session.member.role === "viewer" || state.conflicts.length > 0;
       $2("cloudHistory").disabled = !active();
@@ -36453,12 +36517,49 @@ The @mediabunny/mp3-encoder extension package provides support for encoding MP3.
     document.body.appendChild(script);
   }
 
+  // subtitle-preview.js
+  function initSubtitlePreview(editor2) {
+    const canvas = document.getElementById("subtitlePreview");
+    const stage = document.getElementById("videoStage");
+    const player = editor2.player;
+    let rows = [];
+    function draw(value) {
+      rows = value;
+      canvas.width = player.videoWidth || 1920;
+      canvas.height = player.videoHeight || 1080;
+      stage.style.aspectRatio = canvas.width + " / " + canvas.height;
+      const project = editor2.getProject();
+      paintSubtitles(canvas, rows, project.appearance, project.colors);
+    }
+    function activeRows() {
+      return editor2.getProject().rows.filter((row) => row.start <= player.currentTime && player.currentTime < row.end);
+    }
+    function preview(row) {
+      const active = activeRows();
+      if (row) draw(active.includes(row) ? active : [row]);
+      else draw([]);
+    }
+    function playback() {
+      const active = activeRows();
+      if (active.length !== rows.length || active.some((row, i) => row !== rows[i])) draw(active);
+    }
+    canvas.hidden = false;
+    stage.classList.add("subtitle-preview-stage");
+    editor2.setCallbacks({ onPreview: preview, onPlayback: playback });
+    player.addEventListener("loadedmetadata", () => draw(rows));
+    player.addEventListener("emptied", () => draw(rows));
+    editor2.ready.then(() => {
+      preview(editor2.getProject().rows[editor2.getIndex()] || null);
+    });
+  }
+
   // web-entry.js
   initWebAnalytics();
   var exporter;
   var editor = createBrowserEditor({ isExportOpen: () => exporter.isOpen() });
   exporter = initVideoExport(editor, { exportMP4 });
   initCollaboration(editor);
+  initSubtitlePreview(editor);
 })();
 </script>
 </body>

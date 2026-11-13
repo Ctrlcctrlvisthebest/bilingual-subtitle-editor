@@ -30,7 +30,7 @@ __COLLABORATION_BAR__
 <small>人物颜色用于文字描边；选择色框模式时用作底色。ASS 导出保留人物颜色。</small>
 </details>
 <details>
-<summary>字幕样式 · 白字 / 人物颜色描边</summary>
+<summary>字幕样式与位置 · 白字 / 人物颜色描边</summary>
 <div class="row">
 <label>样式 <select id="subtitleMode">
 <option value="outline">白字＋人物颜色描边</option>
@@ -59,13 +59,35 @@ __COLLABORATION_BAR__
 <label>
 <input id="subtitleBold" type="checkbox" checked>粗体</label>
 </div>
+<div class="row" role="group" aria-label="字幕位置">
+<label>字幕位置 <select id="subtitleAlignment">
+<option value="7">顶部靠左</option>
+<option value="8">顶部居中</option>
+<option value="9">顶部靠右</option>
+<option value="4">中间靠左</option>
+<option value="5">画面正中</option>
+<option value="6">中间靠右</option>
+<option value="1">底部靠左</option>
+<option value="2" selected>底部居中</option>
+<option value="3">底部靠右</option>
+</select>
+</label>
+<label>左右边距 <input id="subtitleMarginX" type="number" min="0" max="800" step="5" value="80" aria-describedby="subtitlePositionHelp">
+</label>
+<label>上下边距 <input id="subtitleMarginY" type="number" min="0" max="900" step="5" value="60" aria-describedby="subtitlePositionHelp">
+</label>
+<button id="resetSubtitlePosition" type="button">恢复默认位置</button>
+</div>
+<small id="subtitlePositionHelp">位置设置应用于整个工程。边距以 1080p 像素计；顶部或底部的上下边距越大，字幕越靠近画面中间。居中时相应边距不移动中心点。视频画面、ASS 和带字幕视频导出同步；SRT 不保存位置。</small>
 <small>白字＋彩色描边没有底框；人物颜色在“工程名称与说话者颜色”中设置。字号和描边按 1080p 计，预览按比例缩放。__SAVE_STYLE_NOTICE__；导出 ASS 保留描边，SRT 只保存双语顺序、文字和时间。播放设备未安装所选字体时会使用替代字体。</small>
 </details>
 <section class="player" aria-label="听校播放器">
 <small id="mediaName">
 </small>
-<video id="video" controls preload="metadata" __VIDEO_ATTRIBUTES__>
-</video>
+<div id="videoStage">
+<video id="video" controls preload="metadata" __VIDEO_ATTRIBUTES__></video>
+<canvas id="subtitlePreview" hidden aria-label="字幕位置画面预览"></canvas>
+</div>
 <div class="playback-controls" role="group" aria-label="播放控制">
 <button id="back5" class="seek-step" type="button" disabled title="后退 5 秒（←）">← 后退 5 秒</button>
 <button id="playPause" type="button" disabled aria-label="播放" title="播放 / 暂停（空格）">▶ 播放</button>

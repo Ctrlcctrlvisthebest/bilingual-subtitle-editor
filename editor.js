@@ -1,4 +1,4 @@
-import { clone, uid, normalizeProject, normalizeAppearance, blankRow, roundTime, validTimes, DEFAULT_COLORS } from "./project.js";
+import { clone, uid, normalizeProject, normalizeAppearance, blankRow, roundTime, validTimes, DEFAULT_COLORS, DEFAULT_APPEARANCE } from "./project.js";
 import { contrast, widthUnits, playbackTime, parseSRT, parseASS } from "./subtitle-formats.js";
 function createEditor({ initialProject, store, loadMedia, output, isExportOpen, validateProject = normalizeProject }) {
   const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
   }
   function drawAppearance() {
     const a = project.appearance;
-    for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font" })) $(id).value = String(a[field]);
+    for (const [id, field] of Object.entries({ subtitleMode: "mode", subtitleOrder: "order", zhSize: "zhSize", enSize: "enSize", outlineWidth: "outlineWidth", subtitleFont: "font", subtitleAlignment: "alignment", subtitleMarginX: "marginX", subtitleMarginY: "marginY" })) $(id).value = String(a[field]);
     $("subtitleBold").checked = a.bold;
     $("outlineWidth").disabled = a.mode === "box";
   }
@@ -40,6 +40,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
       el.style.webkitTextStroke = outlined ? 2 * stroke + "px " + color : "0px";
       el.style.textShadow = outlined ? "0 " + scale + "px " + scale + "px #000000" : "none";
     }
+    if (callbacks.onPreview) callbacks.onPreview(r);
   }
   const rowControls = ["prev", "next", "seek", "setStart", "setEnd", "startMinus", "startPlus", "endMinus", "endPlus", "listenStart", "listenEnd", "split", "merge", "delete", "start", "end", "speaker", "status", "zhEdit", "enEdit", "note"];
   function draw() {
@@ -61,7 +62,11 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
       preview(r);
       $("speakerName").value = r.speaker;
       $("speakerColor").value = project.colors[r.speaker] || "#455a64";
-    } else $("sub").style.visibility = "hidden";
+    } else {
+      lastPreview = null;
+      $("sub").style.visibility = "hidden";
+      if (callbacks.onPreview) callbacks.onPreview(null);
+    }
     drawAppearance();
     timingHint();
     offsetPreview();
@@ -233,7 +238,14 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
       if (!playbackRow || t < playbackRow.start || t >= playbackRow.end) playbackRow = project.rows.find((row) => row.start <= t && row.end > t);
       const r = playbackRow;
       $("sub").style.visibility = r ? "visible" : "hidden";
-      if (r && r !== lastPreview) preview(r);
+      if (r !== lastPreview) {
+        if (r) preview(r);
+        else {
+          lastPreview = null;
+          if (callbacks.onPreview) callbacks.onPreview(null);
+        }
+      }
+      if (callbacks.onPlayback) callbacks.onPlayback(t);
     }
     $("playbackClock").textContent = playbackTime(player.currentTime) + " / " + playbackTime(player.duration);
   }
@@ -628,7 +640,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
     if (!$("projectTitle").value.trim()) $("projectTitle").value = project.title;
   });
   function changeAppearance() {
-    const incoming = normalizeAppearance({ mode: $("subtitleMode").value, order: $("subtitleOrder").value, zhSize: Number($("zhSize").value), enSize: Number($("enSize").value), outlineWidth: Number($("outlineWidth").value), font: $("subtitleFont").value, bold: $("subtitleBold").checked });
+    const incoming = normalizeAppearance({ mode: $("subtitleMode").value, order: $("subtitleOrder").value, zhSize: Number($("zhSize").value), enSize: Number($("enSize").value), outlineWidth: Number($("outlineWidth").value), font: $("subtitleFont").value, bold: $("subtitleBold").checked, alignment: Number($("subtitleAlignment").value), marginX: Number($("subtitleMarginX").value), marginY: Number($("subtitleMarginY").value) });
     if (JSON.stringify(incoming) === JSON.stringify(project.appearance)) {
       drawAppearance();
       return;
@@ -638,10 +650,14 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
     editGroup = null;
     save();
     draw();
-    notice("字幕样式已更新，预览和 ASS 导出同步；文字与时间保持不变，可撤销。");
+    notice("字幕样式与位置已更新，预览、ASS 和视频导出同步，可撤销。");
   }
-  for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold"]) $(id).addEventListener("change", changeAppearance);
-  for (const id of ["zhSize", "enSize", "outlineWidth"]) {
+  for (const id of ["subtitleMode", "subtitleOrder", "zhSize", "enSize", "outlineWidth", "subtitleFont", "subtitleBold", "subtitleAlignment", "subtitleMarginX", "subtitleMarginY"]) $(id).addEventListener("change", changeAppearance);
+  $("resetSubtitlePosition").addEventListener("click", () => {
+    for (const [id, field] of [["subtitleAlignment", "alignment"], ["subtitleMarginX", "marginX"], ["subtitleMarginY", "marginY"]]) $(id).value = String(DEFAULT_APPEARANCE[field]);
+    changeAppearance();
+  });
+  for (const id of ["zhSize", "enSize", "outlineWidth", "subtitleMarginX", "subtitleMarginY"]) {
     $(id).addEventListener("blur", changeAppearance);
     $(id).addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -773,7 +789,7 @@ function createEditor({ initialProject, store, loadMedia, output, isExportOpen, 
     }
   })();
   return { ready, player, getProject: () => project, getMediaFile: () => mediaSources.get(project.editor_id)?.handle.file, getIndex: () => idx, notice, activateProject, applyProject, replaceRows, save, flushSave: () => store.flush(), redraw: draw, setCallbacks(value) {
-    callbacks = value;
+    callbacks = { ...callbacks, ...value };
   }, go, pause, stopLoop, releaseMedia, commitTimes, importFile, exportRows, download: output };
 }
 export {

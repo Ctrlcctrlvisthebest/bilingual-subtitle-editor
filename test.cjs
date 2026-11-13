@@ -11,7 +11,7 @@ const deferred = () => {
   return {promise, resolve};
 };
 const source = buildSync({
-  stdin: {contents: "import {createEditor} from './editor.js'; import * as formats from './subtitle-formats.js'; globalThis.testAPI = {createEditor,...formats};", resolveDir: __dirname},
+  stdin: {contents: "import {createEditor} from './editor.js'; import {initSubtitlePreview} from './subtitle-preview.js'; import * as formats from './subtitle-formats.js'; globalThis.testAPI = {createEditor,initSubtitlePreview,...formats};", resolveDir: __dirname},
   bundle: true, write: false, format: 'iife', platform: 'browser'
 }).outputFiles[0].text;
 const sample = {version: 1, editor_id: 'a', title: '测试 A', colors: {Unknown: '#455a64', Alice: '#247c98'}, rows: [
@@ -125,6 +125,65 @@ test('outline/box styles and SRT/ASS round trips preserve text, speakers and tim
   assert.equal(a.editor.getProject().rows[0].en, 'English only.'); assert.equal(a.editor.getProject().rows[0].zh, '');
   await a.editor.importFile({name: 'Roundtrip.ass', text: async () => ass});
   assert.equal(a.editor.getProject().appearance.outlineWidth, 4); assert.equal(a.editor.getProject().rows.length, 2);
+});
+
+test('position changes survive style edits and JSON reload, reset and undo without changing cues', async () => {
+  const a = setup(); await a.editor.ready;
+  const originalRows = JSON.stringify(a.editor.getProject().rows);
+  const initial = a.editor.getProject().appearance;
+  assert.equal(initial.alignment, 2); assert.equal(initial.marginX, 80); assert.equal(initial.marginY, 60);
+  const previews = [];
+  let changes = 0;
+  a.editor.setCallbacks({onPreview: row => previews.push(row?.id || null)});
+  a.editor.setCallbacks({onChange() {changes++;}});
+  await edit(a, 'subtitleAlignment', '7', 'change');
+  await edit(a, 'subtitleMarginX', '140', 'change');
+  await edit(a, 'subtitleMarginY', '120', 'change');
+  await edit(a, 'zhSize', '56', 'change');
+  assert.equal(changes, 4); assert.equal(previews.at(-1), 'one');
+  assert.equal(JSON.stringify(a.editor.getProject().rows), originalRows);
+  const saved = native(a.editor.getProject());
+  await a.el('resetSubtitlePosition').click();
+  assert.equal(a.editor.getProject().appearance.alignment, 2);
+  assert.equal(a.editor.getProject().appearance.zhSize, 56);
+  await a.el('undo').click();
+  assert.equal(a.editor.getProject().appearance.alignment, 7);
+  assert.equal(a.editor.getProject().appearance.marginY, 120);
+  await a.editor.activateProject(saved);
+  assert.equal(a.el('subtitleAlignment').value, '7');
+  assert.equal(a.el('subtitleMarginX').value, '140');
+  assert.equal(a.el('subtitleMarginY').value, '120');
+  a.player.currentTime = 10; await a.player.fire('timeupdate');
+  a.player.currentTime = 13; await a.player.fire('timeupdate');
+  assert.equal(previews.at(-1), null);
+  a.player.currentTime = 10; await a.player.fire('timeupdate');
+  assert.equal(previews.at(-1), 'one', 'returning to the same cue restores its preview');
+  assert.equal(JSON.stringify(a.editor.getProject().rows), originalRows);
+});
+
+test('video overlay follows overlapping cues and skips repainting unchanged playback frames', async () => {
+  const initial = native(sample);
+  initial.rows[0].start = 0; initial.rows[0].end = 4;
+  initial.rows[1].start = 1; initial.rows[1].end = 2;
+  const a = setup({initial}); await a.editor.ready;
+  const canvas = a.el('subtitlePreview'), text = [];
+  let paints = 0, width = 0;
+  Object.defineProperty(canvas, 'width', {get() {return width;}, set(value) {width = value; paints++; text.length = 0;}});
+  canvas.getContext = () => ({save() {}, restore() {}, measureText(value) {return {width: value.length * 20};}, strokeText() {}, fillText(value) {text.push(value);}});
+  a.el('videoStage').classList = {add() {}};
+  a.player.videoWidth = 1280; a.player.videoHeight = 720;
+  a.formats.initSubtitlePreview(a.editor);
+  await Promise.resolve();
+  a.player.currentTime = 1.5; await a.player.fire('timeupdate');
+  assert.deepEqual(text, ['Next.', '下一句', 'Hello.', '你好']);
+  const before = paints;
+  a.player.currentTime = 1.6; await a.player.fire('timeupdate');
+  assert.equal(paints, before);
+  a.player.currentTime = 2.5; await a.player.fire('timeupdate');
+  assert.deepEqual(text, ['Hello.', '你好'], 'ending an overlapping cue updates the overlay');
+  a.player.currentTime = 4; await a.player.fire('timeupdate');
+  assert.deepEqual(text, []);
+  assert.equal(a.el('videoStage').style.aspectRatio, '1280 / 720');
 });
 
 test('remote refresh preserves focused text selection and project activation rejects obsolete requests', async () => {

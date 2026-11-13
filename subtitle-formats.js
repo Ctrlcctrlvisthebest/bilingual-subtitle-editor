@@ -100,7 +100,7 @@ function esc(s) {
   return s.replace(/\\/g, "＼").replace(/[{}]/g, "").replace(/[\r\n]+/g, " ");
 }
 function buildASS(rs, project) {
-  const a = project.appearance, outlined = a.mode === "outline";
+  const a = normalizeAppearance(project.appearance), outlined = a.mode === "outline";
   let header = "[Script Info]\nTitle: Bilingual subtitles\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nScaledBorderAndShadow: yes\nWrapStyle: 2\n; BilingualEditorAppearance: " + JSON.stringify(a) + "\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n";
   const styles = /* @__PURE__ */ new Map(), reserved = new Set(Object.keys(project.colors));
   let n = 0;
@@ -114,14 +114,14 @@ function buildASS(rs, project) {
     }
     styles.set(name, style);
     const c = hex.slice(1), bgr = c.slice(4, 6) + c.slice(2, 4) + c.slice(0, 2), foreground = outlined ? "&H00FFFFFF" : contrast(hex) === "#101010" ? "&H00101010" : "&H00FFFFFF";
-    header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},2,80,80,60,1
+    header += `Style: ${style},${a.font},${a.zhSize},${foreground},&H00FFFFFF,&H00${bgr},${outlined ? "&H80000000" : "&H00" + bgr},${a.bold ? -1 : 0},0,0,0,100,100,0,0,${outlined ? 1 : 3},${outlined ? a.outlineWidth : 10},${outlined ? 1 : 0},${a.alignment},${a.marginX},${a.marginX},${a.marginY},1
 `;
   }
   header += "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
   return header + rs.map((r) => {
     const parts = [], start = Math.round(r.start * 100) / 100, end = Math.max(start + 0.01, Math.round(r.end * 100) / 100);
     for (const language of a.order === "zh-first" ? ["zh", "en"] : ["en", "zh"]) if (r[language].trim()) {
-      const size = Math.min(a[language + "Size"], Math.floor(1700 / Math.max(1, widthUnits(r[language]))));
+      const size = Math.min(a[language + "Size"], Math.floor(Math.min(1700, 1920 - 2 * a.marginX) / Math.max(1, widthUnits(r[language]))));
       parts.push(`{\\fs${size}}${esc(r[language])}`);
     }
     return `Dialogue: 0,${time(start, true)},${time(end, true)},${styles.get(r.speaker) || "Unknown"},${r.speaker.replace(/[,\r\n]/g, " ")},0,0,0,,${parts.join("\\N")}`;

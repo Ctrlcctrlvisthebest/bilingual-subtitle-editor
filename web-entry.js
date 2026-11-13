@@ -3,6 +3,7 @@ import {initVideoExport} from './video-export.js';
 import {exportMP4} from './direct-video-export.js';
 import {initCollaboration} from './collaboration.js';
 import {initWebAnalytics} from './web-analytics.js';
+import {initSubtitlePreview} from './subtitle-preview.js';
 
 initWebAnalytics();
 
@@ -10,3 +11,4 @@ let exporter;
 const editor = createBrowserEditor({isExportOpen: () => exporter.isOpen()});
 exporter = initVideoExport(editor, {exportMP4});
 initCollaboration(editor);
+initSubtitlePreview(editor);
